@@ -50,6 +50,10 @@ class ZSServer : public BLECharacteristicCallbacks, public BLEServerCallbacks {
  
     void onWrite (BLECharacteristic *chr){
     }
+
+    BLEServer *getServer(){
+      return server ;
+    }
 } ;
 
 

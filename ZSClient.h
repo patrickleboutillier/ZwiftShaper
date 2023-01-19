@@ -70,6 +70,10 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
         Serial.print("- Found service '") ;
         Serial.print(uuid.c_str()) ;
         Serial.println("'") ;
+
+        // Setup this service on our server
+        BLEService *srvc = shaper->getBLEServer()->createService(remsrvc->getUUID()) ;
+
         std::map<std::string, BLERemoteCharacteristic*> *chrsmap = remsrvc->getCharacteristics() ;
         std::map<std::string, BLERemoteCharacteristic*>::iterator it ;
         for (it = chrsmap->begin() ; it != chrsmap->end() ; it++){
@@ -77,40 +81,39 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
           BLERemoteCharacteristic *remchr = it->second ;
           Serial.print("  - Found characteristic :") ;
           Serial.println(remchr->toString().c_str()) ;
+          uint32_t properties =
+            (remchr->canRead() ? BLECharacteristic::PROPERTY_READ : 0) |
+            (remchr->canWrite() ? BLECharacteristic::PROPERTY_WRITE : 0) |
+            (remchr->canNotify() ? BLECharacteristic::PROPERTY_NOTIFY : 0) |
+            (remchr->canBroadcast() ? BLECharacteristic::PROPERTY_BROADCAST : 0) |
+            (remchr->canIndicate() ? BLECharacteristic::PROPERTY_INDICATE : 0) |
+            (remchr->canWriteNoResponse() ? BLECharacteristic::PROPERTY_WRITE_NR : 0) ;
+      
+          // Setup this characteristic on our server
+          BLECharacteristic *chr = new BLECharacteristic(BLEUUID(remchr->getUUID()), properties) ;
+          pFitness->addCharacteristic(chr) ;
+
+          if (remchr->canNotify()){
+            // We need to set up a callback to handle these notifications
+            remchr->registerForNotify([=](BLERemoteCharacteristic* blerc, uint8_t* data, size_t length, bool is_notify){
+              if (blerc->getUUID().equals(BLEUUID(CPS_CPM_UUID))){
+                this->onCyclingPowerMeasurement(blerc, data, length, is_notify) ;
+              }
+
+              // Now that we had a chance to modify the data, we must forward it through our server counterpart:
+              chr.setValue(data, length) ;
+              chr.notify() ;
+            }) ;
+          }
         }
-      }      
+
+        remsrvc->start() ;
+      }
     }
     
     void disconnectFromServer(){
       Serial.print("Disconnecting to remote device") ;
       client->disconnect() ;
-    }
-
-    /*
-    void setupForCyclingPowerService(){
-      BLERemoteCharacteristic *cycling_power_feature = remote_service->getCharacteristic(BLEUUID(CPS_CPF_UUID)) ;
-      if (cycling_power_feature != nullptr) {
-        Serial.println("  - Found Cycling Power Feature characteristic") ;
-      }     
-      uint32_t cpf = cycling_power_feature->readUInt32() ;
-      Serial.print("Feature: 0b") ;
-      Serial.println(cpf, BIN) ;
-
-      BLERemoteCharacteristic *sensor_location = remote_service->getCharacteristic(BLEUUID(CPS_SL_UUID)) ;
-      if (sensor_location != nullptr) {
-        Serial.println("  - Found Sensor Location characteristic") ;
-      }
-      uint8_t sl = sensor_location->readUInt8() ;
-      Serial.print("Location: 0x") ;
-      Serial.println(sl, HEX) ;
-      
-      BLERemoteCharacteristic *cycling_power_measurement = remote_service->getCharacteristic(BLEUUID((uint16_t)0x2A63)) ;
-      if (cycling_power_measurement != nullptr) {
-        Serial.println("  - Found Cycling Power Measurement characteristic") ;
-      }
-      cycling_power_measurement->registerForNotify([=](BLERemoteCharacteristic* blerc, uint8_t* data, size_t length, bool is_notify){
-        this->onCyclingPowerMeasurement(blerc, data, length, is_notify) ;
-      }) ;    
     }
 
     void onCyclingPowerMeasurement(BLERemoteCharacteristic* blerc, uint8_t* data, size_t length, bool is_notify){
@@ -146,7 +149,6 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
         }
       }
     }
-    */
 } ;
 
 

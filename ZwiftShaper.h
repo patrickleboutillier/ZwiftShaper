@@ -36,6 +36,10 @@ class ZwiftShaper {
     ZSServer *getZSServer(){
       return server ;
     }
+
+    BLEServer *getBLEServer(){
+      return server->getServer() ;
+    }
 } ;
 
 
