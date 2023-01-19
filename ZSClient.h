@@ -9,15 +9,11 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks, public BLEClientCallbacks 
     ZwiftShaper *shaper ;
     BLEClient *client ;
     BLEAdvertisedDevice *remote_device ;
-    BLEUUID remote_service_bleuuid ;
-    BLERemoteService *remote_service ;
 
   public:
     ZSClient(ZwiftShaper *zs){
       shaper = zs ;
       client = BLEDevice::createClient() ;
-      remote_device = nullptr ;
-      remote_service = nullptr ;
     }
 
     // Scans and locates the desired server
@@ -35,16 +31,14 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks, public BLEClientCallbacks 
 
     // Called while scanning when a new device is discovered.
     void onResult(BLEAdvertisedDevice adev) {
-      Serial.print("- Found device '") ;
-      Serial.print(adev.getName().c_str()) ;
-      Serial.print("': ")  ;
-      Serial.println(adev.toString().c_str()) ;
       // We have found a device, let us now see if it contains one of the services we are looking for.
       if (adev.isAdvertisingService(BLEUUID(CPS_UUID))){ // Cycling Power Service
         // For know, just pick the first one we find...
+        Serial.print("- Found device '") ;
+        Serial.print(adev.getName().c_str()) ;
+        Serial.print("': ")  ;
+        Serial.println(adev.toString().c_str()) ;
         Serial.println("  - Device with Cycling Power Service found: stopping scan") ;
-        remote_service_bleuuid = BLEUUID(CYCLING_POWER_SERVICE) ;
-        remote_device = new BLEAdvertisedDevice(adev) ;
         BLEDevice::getScan()->stop() ;
       }
     }
@@ -61,17 +55,15 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks, public BLEClientCallbacks 
       // Connect to the remove BLE Server.
       client->connect(remote_device) ;
                   
-      // Obtain a reference to the service we are after in the remote BLE server.
-      remote_service = client->getService(remote_service_bleuuid) ;
-      if (remote_service != nullptr) {
-        Serial.println("- Found remote service") ;
-      } 
-
-      if (remote_service_bleuuid.equals(BLEUUID(CYCLING_POWER_SERVICE))){
-        setupForCyclingPowerService() ;
+      // Now we want to get all the services offered by the device, with their characteristics, 
+      // register them with our server and setup callbacks for the ones we want to influence.
+      std::map<std::string, BLERemoteService*> *srvmap = client->getServices() ;
+      map<std::string, BLERemoteService*>::iterator it ;
+      for (it = srvmap->begin() ; it != symbolTable->end() ; it++){
+        Serial.print("Found service '") ;
+        Serial.print(it->first) ;
+        Serial.println("'") ;
       }
-
-      return true ;
     }
 
     void disconnectFromServer(){
@@ -79,6 +71,7 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks, public BLEClientCallbacks 
       client->disconnect() ;
     }
 
+    /*
     void setupForCyclingPowerService(){
       BLERemoteCharacteristic *cycling_power_feature = remote_service->getCharacteristic(BLEUUID(CPS_CPF_UUID)) ;
       if (cycling_power_feature != nullptr) {
@@ -138,6 +131,7 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks, public BLEClientCallbacks 
         }
       }
     }
+    */
 } ;
 
 
