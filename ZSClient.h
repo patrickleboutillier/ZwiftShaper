@@ -71,8 +71,9 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
         Serial.print(uuid.c_str()) ;
         Serial.println("'") ;
 
-        // Setup this service on our server
+        // Setup this service on our server, and also for advertising
         BLEService *srvc = shaper->getBLEServer()->createService(remsrvc->getUUID()) ;
+        BLEDevice::getAdvertising()->addServiceUUID(remsrvc->getUUID()) ;
 
         std::map<std::string, BLERemoteCharacteristic*> *chrsmap = remsrvc->getCharacteristics() ;
         std::map<std::string, BLERemoteCharacteristic*>::iterator it ;
@@ -100,9 +101,9 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
                 this->onCyclingPowerMeasurement(blerc, data, length, is_notify) ;
               }
 
-              // Now that we had a chance to modify the data, we must forward it through our server counterpart:
-              chr.setValue(data, length) ;
-              chr.notify() ;
+              // Now that we had a chance to modify the data, we forward it through our server counterpart:
+              // chr.setValue(data, length) ;
+              // chr.notify() ;
             }) ;
           }
         }

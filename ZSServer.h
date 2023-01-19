@@ -27,22 +27,25 @@ class ZSServer : public BLECharacteristicCallbacks, public BLEServerCallbacks {
       client_connected = false ;
     }
 
-    void setupServices(){
-      BLEService *cps = server->createService(BLEUUID(CPS_UUID)) ;
-      cps->addCharacteristic(&cycling_power_feature) ;
-      cps->addCharacteristic(&sensor_location) ;
-      cps->addCharacteristic(&cycling_power_measurement) ;
-      cps->start() ;
+    void startAdvertizing(){
+      // ::esp_ble_gap_set_device_name(deviceName.c_str()) ;
+      BLEAdvertising *adv = BLEDevice::getAdvertising() ;
+      adv->setScanResponse(true) ;
+      adv->setMinPreferred(0x06) ;
+      BLEDevice::startAdvertising() ;
     }
 
     // Callback called on client connect
     void onConnect(BLEServer *srv) {
+      Serial.println("Connected") ;
       client_connected = true ;
     }
 
     // Callback called on client disconnect
     void onDisconnect(BLEServer *srv) {
+      Serial.println("Disconnected") ;
       client_connected = false ;
+      // BLEDevice::startAdvertising() ;
     }
 
     void onRead(BLECharacteristic *chr){
