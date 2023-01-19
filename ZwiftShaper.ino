@@ -1,16 +1,20 @@
 #include "ZwiftShaper.h"
 
 
-void setup() {
-    // put your setup code here, to run once:
-    Serial.begin(9600) ;
+ZwiftShaper ZS ;
 
-    BLEDevice::init("");
-    ZSClient *game = new ZSClient() ;
-    BLEAdvertisedDevice *trainer = game->findServer(10) ;
-    game->connectToServer(trainer) ;
-    delay(300000) ;
-    game->disconnectFromServer() ;
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(115200) ;
+
+  ZSClient *game = ZS.getZSClient() ;
+  if (game->findServer(10)){
+    if (game->connectToServer()){
+      delay(300000) ;
+      game->disconnectFromServer() ;
+    }
+  }
 }
 
 void loop() {
