@@ -28,7 +28,7 @@ class ZSServer : public BLECharacteristicCallbacks, public BLEServerCallbacks {
     }
 
     void startAdvertizing(){
-      // ::esp_ble_gap_set_device_name(deviceName.c_str()) ;
+      // ::esp_ble_gap_set_device_name(shaper->getName()) ;
       BLEAdvertising *adv = BLEDevice::getAdvertising() ;
       adv->setScanResponse(true) ;
       adv->setMinPreferred(0x06) ;

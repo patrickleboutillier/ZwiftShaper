@@ -20,11 +20,13 @@ class ZwiftShaper ;
 
 class ZwiftShaper {
   private:
+    std::string name ;
     ZSClient *client ;
     ZSServer *server ;
   public:
     ZwiftShaper(){
-      BLEDevice::init("ZS[]") ;
+      name = "ZS[]" ;
+      BLEDevice::init(name.c_str()) ;
       client = new ZSClient(this) ;
       server = new ZSServer(this) ;
     }
@@ -39,6 +41,14 @@ class ZwiftShaper {
 
     BLEServer *getBLEServer(){
       return server->getServer() ;
+    }
+
+    const char *getName(){
+      return name.c_str() ;
+    }
+
+    void setName(const char *n){
+      name = n ;
     }
 } ;
 

@@ -55,6 +55,7 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
       Serial.println("'")  ;
       // Connect to the remote BLE Server.
       client->connect(remote_device) ;
+      shaper->setName(remote_device->getName().c_str()) ;
                   
       return true ;
     }
