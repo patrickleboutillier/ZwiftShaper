@@ -1,7 +1,7 @@
 #ifndef ZSSERVER_H
 #define ZSSERVER_H
 
-#include <ZwiftShaper.h>
+#include "ZwiftShaper.h"
 
 
 // Characteristic definitions

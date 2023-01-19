@@ -1,10 +1,10 @@
 #ifndef ZSCLIENT_H
 #define ZSCLIENT_H
 
-#include <ZwiftShaper.h>
+#include "ZwiftShaper.h"
 
 
-class ZSClient : public BLEAdvertisedDeviceCallbacks, public BLEClientCallbacks {
+class ZSClient : public BLEAdvertisedDeviceCallbacks {
   private:
     ZwiftShaper *shaper ;
     BLEClient *client ;
@@ -19,10 +19,10 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks, public BLEClientCallbacks 
     // Scans and locates the desired server
     bool findServer(int timeout){
       Serial.println("Starting scan...") ;
-      BLEScan* pBLEScan = BLEDevice::getScan() ;
-      pBLEScan->setAdvertisedDeviceCallbacks(this) ;
-      pBLEScan->setActiveScan(true) ;
-      pBLEScan->start(timeout) ; 
+      BLEScan* scan = BLEDevice::getScan() ;
+      scan->setAdvertisedDeviceCallbacks(this) ;
+      scan->setActiveScan(true) ;
+      scan->start(timeout) ; 
 
       // The callbacks will set remote_device if a proper device (.i.e. BLE Server) is found.
       // At this point we are not yet connected to this device though.
@@ -39,33 +39,48 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks, public BLEClientCallbacks 
         Serial.print("': ")  ;
         Serial.println(adev.toString().c_str()) ;
         Serial.println("  - Device with Cycling Power Service found: stopping scan") ;
+        remote_device = new BLEAdvertisedDevice(adev) ;
         BLEDevice::getScan()->stop() ;
       }
     }
 
     // Connect to the BLE Server (i.e. the "trainer") at the specified address
     bool connectToServer() {
-      if (remote_device != nullptr){
+      if (remote_device == nullptr){
         return false ;
       }
 
       Serial.print("Connecting to remote device '") ;
       Serial.print(remote_device->getName().c_str()) ;
       Serial.println("'")  ;
-      // Connect to the remove BLE Server.
+      // Connect to the remote BLE Server.
       client->connect(remote_device) ;
                   
-      // Now we want to get all the services offered by the device, with their characteristics, 
-      // register them with our server and setup callbacks for the ones we want to influence.
-      std::map<std::string, BLERemoteService*> *srvmap = client->getServices() ;
-      map<std::string, BLERemoteService*>::iterator it ;
-      for (it = srvmap->begin() ; it != symbolTable->end() ; it++){
-        Serial.print("Found service '") ;
-        Serial.print(it->first) ;
-        Serial.println("'") ;
-      }
+      return true ;
     }
 
+    void setupServices(){
+      // Now we want to get all the services offered by the device, with their characteristics, 
+      // register them with our server and setup callbacks for the ones we want to influence.
+      std::map<std::string, BLERemoteService*> *srvcmap = client->getServices() ;
+      std::map<std::string, BLERemoteService*>::iterator it ;
+      for (it = srvcmap->begin() ; it != srvcmap->end() ; it++){
+        std::string uuid = it->first ;
+        BLERemoteService *remsrvc = it->second ;
+        Serial.print("- Found service '") ;
+        Serial.print(uuid.c_str()) ;
+        Serial.println("'") ;
+        std::map<std::string, BLERemoteCharacteristic*> *chrsmap = remsrvc->getCharacteristics() ;
+        std::map<std::string, BLERemoteCharacteristic*>::iterator it ;
+        for (it = chrsmap->begin() ; it != chrsmap->end() ; it++){
+          std::string uuid = it->first ;
+          BLERemoteCharacteristic *remchr = it->second ;
+          Serial.print("  - Found characteristic :") ;
+          Serial.println(remchr->toString().c_str()) ;
+        }
+      }      
+    }
+    
     void disconnectFromServer(){
       Serial.print("Disconnecting to remote device") ;
       client->disconnect() ;
