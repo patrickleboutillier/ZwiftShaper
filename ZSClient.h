@@ -2,6 +2,7 @@
 #define ZSCLIENT_H
 
 #include "ZwiftShaper.h"
+#include "ZSServer.h"
 
 
 class ZSClient : public BLEAdvertisedDeviceCallbacks {
@@ -14,6 +15,7 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
     ZSClient(ZwiftShaper *zs){
       shaper = zs ;
       client = BLEDevice::createClient() ;
+      remote_device = nullptr ;
     }
 
     // Scans and locates the desired server
@@ -67,6 +69,9 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
       std::map<std::string, BLERemoteService*>::iterator it ;
       for (it = srvcmap->begin() ; it != srvcmap->end() ; it++){
         std::string uuid = it->first ;
+        if ((uuid == BLEUUID(GEN_ACC_UUID).toString())||(uuid == BLEUUID(GEN_ATTR_UUID).toString())){
+          continue ;
+        }
         BLERemoteService *remsrvc = it->second ;
         Serial.print("- Found service '") ;
         Serial.print(uuid.c_str()) ;
@@ -75,7 +80,7 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
         // Setup this service on our server, and also for advertising
         BLEService *srvc = shaper->getBLEServer()->createService(remsrvc->getUUID()) ;
         BLEDevice::getAdvertising()->addServiceUUID(remsrvc->getUUID()) ;
-
+        
         std::map<std::string, BLERemoteCharacteristic*> *chrsmap = remsrvc->getCharacteristics() ;
         std::map<std::string, BLERemoteCharacteristic*>::iterator it ;
         for (it = chrsmap->begin() ; it != chrsmap->end() ; it++){
@@ -93,7 +98,7 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
       
           // Setup this characteristic on our server
           BLECharacteristic *chr = new BLECharacteristic(BLEUUID(remchr->getUUID()), properties) ;
-          pFitness->addCharacteristic(chr) ;
+          srvc->addCharacteristic(chr) ;
 
           if (remchr->canNotify()){
             // We need to set up a callback to handle these notifications
@@ -102,14 +107,15 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
                 this->onCyclingPowerMeasurement(blerc, data, length, is_notify) ;
               }
 
+              Serial.println(shaper->getZSServer()->isClientConnected()) ;
               // Now that we had a chance to modify the data, we forward it through our server counterpart:
-              // chr.setValue(data, length) ;
-              // chr.notify() ;
+              //chr->setValue(data, length) ;
+              //chr->notify() ;
             }) ;
           }
         }
 
-        remsrvc->start() ;
+        srvc->start() ;
       }
     }
     
@@ -127,14 +133,14 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
         Serial.println(flags, BIN) ;
 
         int16_t power = data[offset + 1] << 8 | data[offset] ;
-        offest += 2 ;
+        offset += 2 ;
         Serial.print("Power: ") ;
         Serial.print(power) ;
         Serial.println("w ") ;
 
         if (flags & 0b10000){
           uint32_t wrevs = data[offset+3] << 24 | data[offset+2] << 16 | data[offset+1] << 8 | data[offset] ;
-          offest += 4 ;
+          offset += 4 ;
           Serial.print("Wheel Revolutions: ") ;
           Serial.println(wrevs) ;
           uint16_t lwet = data[offset + 1] << 8 | data[offset] ;

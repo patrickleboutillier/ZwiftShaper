@@ -1,8 +1,12 @@
 #ifndef ZWIFTSHAPER_H
 #define ZWIFTSHAPER_H
 
+#include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
+
+#define GEN_ACC_UUID            (uint16_t)0x1800
+#define GEN_ATTR_UUID           (uint16_t)0x1801
 
 // Supported service UUIDs, as defined in GATT specifications
 #define CPS_UUID                (uint16_t)0x1818
@@ -14,9 +18,8 @@
 #define CPS_CPM_UUID            (uint16_t)0x2A63
 
 
-class ZwiftShaper ; 
-#include "ZSClient.h"
-#include "ZSServer.h"
+class ZSClient ; 
+class ZSServer ; 
 
 class ZwiftShaper {
   private:
@@ -24,32 +27,12 @@ class ZwiftShaper {
     ZSClient *client ;
     ZSServer *server ;
   public:
-    ZwiftShaper(){
-      name = "ZS[]" ;
-      BLEDevice::init(name.c_str()) ;
-      client = new ZSClient(this) ;
-      server = new ZSServer(this) ;
-    }
-
-    ZSClient *getZSClient(){
-      return client ;
-    }
-
-    ZSServer *getZSServer(){
-      return server ;
-    }
-
-    BLEServer *getBLEServer(){
-      return server->getServer() ;
-    }
-
-    const char *getName(){
-      return name.c_str() ;
-    }
-
-    void setName(const char *n){
-      name = n ;
-    }
+    ZwiftShaper() ;
+    ZSClient *getZSClient() ;
+    ZSServer *getZSServer() ;
+    BLEServer *getBLEServer() ;
+    std::string getName() ;
+    void setName(std::string n) ;
 } ;
 
 
