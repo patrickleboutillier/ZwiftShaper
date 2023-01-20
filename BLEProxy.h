@@ -29,6 +29,7 @@ class BLEProxy : public BLEServerCallbacks {
       client_connected = false ;
     }
 
+
     /*
       Call this method once an appripriate device has been chosen as the proxy's "server".
       This method will clone the BLE profile of the "server" into our BLEServer instance.
@@ -121,10 +122,30 @@ class BLEProxy : public BLEServerCallbacks {
         return ;
       }
     }
-    
+
+
     void onDisconnect(BLEServer *srv){
-      Serial.println("Disconnect") ;
+      Serial.println("Server or client disconnected") ;
+      ESP.restart() ;
     }
+
+
+    // Transfer read over to the client and store it
+    void onRead(BLECharacteristic *chr){
+      Serial.print("Received read for chr ") ;
+      Serial.println(chr->getUUID().toString().c_str()) ;
+        
+      //BLERemoteService *remsrvc = client->getService(chr->getService()->getUUID()) ;
+      //BLERemoteCharacteristic *remchr = remsrvc->getCharacteristic(chr->getUUID()) ;
+      //std::string val = remchr->readValue() ;
+      //chr->setValue(val) ;
+    }
+
+    void ZSServer::onWrite(BLECharacteristic *chr){
+      Serial.print("Received write for chr ") ;
+      Serial.println(chr->getUUID().toString().c_str()) ;
+    }
+
 } ;
 
 
