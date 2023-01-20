@@ -18,7 +18,7 @@ void setup() {
   if (game->findServer(10)){
     if (game->connectToServer()){
       game->setupServices() ;
-      trainer->startAdvertizing() ;
+      trainer->startAdvertising() ;
       delay(300000) ;
       game->disconnectFromServer() ;
     }

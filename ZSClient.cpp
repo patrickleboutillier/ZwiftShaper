@@ -92,6 +92,7 @@ void ZSClient::setupServices(){
   
       // Setup this characteristic on our server
       BLECharacteristic *chr = new BLECharacteristic(BLEUUID(remchr->getUUID()), properties) ;
+      chr->setCallbacks(shaper->getZSServer()) ;
       srvc->addCharacteristic(chr) ;
       // indoorBike.addDescriptor(new BLE2902()) ;
 

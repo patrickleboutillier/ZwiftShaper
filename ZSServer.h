@@ -14,7 +14,7 @@ class ZSServer : public BLECharacteristicCallbacks, public BLEServerCallbacks {
 
   public:
     ZSServer(ZwiftShaper *zs, BLEServer *ble_server, BLEClient *ble_client) ;
-    void startAdvertizing() ;
+    void startAdvertising() ;
     void onConnect(BLEServer *srv) ;
     void onDisconnect(BLEServer *srv) ;
     void onRead(BLECharacteristic *chr) ;

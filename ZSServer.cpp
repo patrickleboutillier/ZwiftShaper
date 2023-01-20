@@ -13,7 +13,8 @@ ZSServer::ZSServer(ZwiftShaper *zs, BLEServer *ble_server, BLEClient *ble_client
 }
 
 
-void ZSServer::startAdvertizing(){
+void ZSServer::startAdvertising(){
+  Serial.println("Starting advertisement...") ;
   std::string name = std::string("ZS[") + shaper->getName() + std::string("]") ;
   ::esp_ble_gap_set_device_name(name.c_str()) ;
   server->setCallbacks(this) ;
@@ -43,7 +44,7 @@ void ZSServer::onDisconnect(BLEServer *srv) {
   else {
     Serial.println("Disconnection received by ZSClient") ;
     // Disconnect server
-    disconnect() ;
+    // server->disconnect(server->getConnId()) ;
   }
 
   // For now, in both cases the best thing to do here is to reset the unit and start over...
@@ -55,10 +56,11 @@ void ZSServer::onDisconnect(BLEServer *srv) {
 void ZSServer::onRead(BLECharacteristic *chr){
     Serial.print("Received read for chr ") ;
     Serial.println(chr->getUUID().toString().c_str()) ;
-    BLERemoteService *remsrvc = client->getService(chr->getService()->getUUID()) ;
-    BLERemoteCharacteristic *remchr = remsrvc->getCharacteristic(chr->getUUID()) ;
-    std::string val = remchr->readValue() ;
-    chr->setValue(val) ;
+    
+    //BLERemoteService *remsrvc = client->getService(chr->getService()->getUUID()) ;
+    //BLERemoteCharacteristic *remchr = remsrvc->getCharacteristic(chr->getUUID()) ;
+    //std::string val = remchr->readValue() ;
+    //chr->setValue(val) ;
 }
 
 
