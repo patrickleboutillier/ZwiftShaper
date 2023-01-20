@@ -8,6 +8,7 @@ ZSClient::ZSClient(ZwiftShaper *zs, BLECLient *ble_client, BLEServer *ble_server
   remote_device = nullptr ;
 }
 
+
 // Scans and locates the desired server
 bool ZSClient::findServer(int timeout){
   Serial.println("Starting scan...") ;
@@ -20,6 +21,7 @@ bool ZSClient::findServer(int timeout){
   // At this point we are not yet connected to this device though.
   return (remote_device != nullptr) ;
 }
+
 
 // Called while scanning when a new device is discovered.
 void ZSClient::onResult(BLEAdvertisedDevice adev) {
@@ -36,6 +38,7 @@ void ZSClient::onResult(BLEAdvertisedDevice adev) {
   }
 }
 
+
 // Connect to the BLE Server (i.e. the "trainer") at the specified address
 bool ZSClient::connectToServer() {
   if (remote_device == nullptr){
@@ -51,6 +54,7 @@ bool ZSClient::connectToServer() {
               
   return true ;
 }
+
 
 void ZSClient::setupServices(){
   // Now we want to get all the services offered by the device, with their characteristics, 
@@ -113,10 +117,12 @@ void ZSClient::setupServices(){
   }
 }
 
+
 void ZSClient::disconnectFromServer(){
   Serial.print("Disconnecting to remote device") ;
   client->disconnect() ;
 }
+
 
 void ZSClient::onCyclingPowerMeasurement(BLERemoteCharacteristic* blerc, uint8_t* data, size_t length, bool is_notify){
   if (length >= 4){

@@ -13,25 +13,31 @@ ZwiftShaper::ZwiftShaper(){
   zs_server = new ZSServer(this, ble_server, ble_client) ;
 }
 
+
 ZSClient *ZwiftShaper::getZSClient(){
   return zs_client ;
 }
+
 
 ZSServer *ZwiftShaper::getZSServer(){
   return zs_server ;
 }
 
+
 BLEServer *ZwiftShaper::getBLEServer(){
   return ble_server ;
 }
+
 
 BLEClient *ZwiftShaper::getBLEClient(){
   return ble_client ;
 }
 
+
 std::string ZwiftShaper::getName(){
   return name ;
 }
+
 
 void ZwiftShaper::setName(std::string n){
   name = n ;
