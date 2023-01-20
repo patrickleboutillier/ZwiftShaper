@@ -21,27 +21,50 @@ void ZSServer::startAdvertizing(){
 }
 
 
-// Callback called on client connect
+// Callback called on client connect.
+// Strangely enough, this also gets triggered when the BLEClient establishes a connection, so 
+// to disable that the setCallbacks() method is called only after the BLEClient has connected with the trainer
+// and the service setup is finished.
 void ZSServer::onConnect(BLEServer *srv) {
-  Serial.println("Connected") ;
+  Serial.println("Connection received by ZSServer") ;
   client_connected = true ;
 }
 
 
 // Callback called on client disconnect
+// Strangely enough, this also gets triggered when the BLEClient receives a disconnection
 void ZSServer::onDisconnect(BLEServer *srv) {
-  Serial.println("Disconnected") ;
-  client_connected = false ;
-  // server->setCallbacks(nullptr) ;
-  // startAdvertizing() ;
+  if (client_connected){
+    Serial.println("Disconnection received by ZSServer") ;
+    client_connected = false ;
+    // Disconnect client
+    client->disconnect() ;
+  }
+  else {
+    Serial.println("Disconnection received by ZSClient") ;
+    // Disconnect server
+    disconnect() ;
+  }
+
+  // For now, in both cases the best thing to do here is to reset the unit and start over...
+  ESP.restart() ;
 }
 
 
+// Transfer read over to the client and store it?
 void ZSServer::onRead(BLECharacteristic *chr){
+    Serial.print("Received read for chr ") ;
+    Serial.println(chr->getUUID().toString().c_str()) ;
+    BLERemoteService *remsrvc = client->getService(chr->getService()->getUUID()) ;
+    BLERemoteCharacteristic *remchr = remsrvc->getCharacteristic(chr->getUUID()) ;
+    std::string val = remchr->readValue() ;
+    chr->setValue(val) ;
 }
 
 
 void ZSServer::onWrite(BLECharacteristic *chr){
+    Serial.print("Received write for chr ") ;
+    Serial.println(chr->getUUID().toString().c_str()) ;
 }
 
 
