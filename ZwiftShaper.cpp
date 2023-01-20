@@ -7,7 +7,9 @@
 ZwiftShaper::ZwiftShaper(){
   name = "ZS[]" ;
   BLEDevice::init(name.c_str()) ;
+  ble_client = BLEDevice::createClient() ;
   client = new ZSClient(this) ;
+  ble_server = BLEDevice::createServer() ;
   server = new ZSServer(this) ;
 }
 
