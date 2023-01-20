@@ -1,7 +1,7 @@
-#include "ZSClient.h"
+#include "ZwiftShaper.h"
 
 
-ZSClient::ZSClient(ZwiftShaper *zs, BLECLient *ble_client, BLEServer *ble_server){
+ZSClient::ZSClient(ZwiftShaper *zs, BLEClient *ble_client, BLEServer *ble_server){
   shaper = zs ;
   client = ble_client ;
   server = ble_server ;

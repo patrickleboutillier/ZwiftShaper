@@ -1,8 +1,5 @@
 #include "ZwiftShaper.h"
 
-#include "ZSClient.h"
-#include "ZSServer.h"
-
 
 ZwiftShaper::ZwiftShaper(){
   name = "ZS[]" ;

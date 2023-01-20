@@ -1,4 +1,4 @@
-#include "ZSServer.h"
+#include "ZwiftShaper.h"
 
 
 ZSServer::ZSServer(ZwiftShaper *zs, BLEServer *ble_server, BLEClient *ble_client){
@@ -7,7 +7,6 @@ ZSServer::ZSServer(ZwiftShaper *zs, BLEServer *ble_server, BLEClient *ble_client
   client = ble_client ;
   client_connected = false ;
 
-  server->setCallbacks(this) ;
   BLEAdvertising *adv = BLEDevice::getAdvertising() ;
   adv->setScanResponse(true) ;
   adv->setMinPreferred(0x06) ;
@@ -17,7 +16,7 @@ ZSServer::ZSServer(ZwiftShaper *zs, BLEServer *ble_server, BLEClient *ble_client
 void ZSServer::startAdvertizing(){
   std::string name = std::string("ZS[") + shaper->getName() + std::string("]") ;
   ::esp_ble_gap_set_device_name(name.c_str()) ;
-
+  server->setCallbacks(this) ;
   BLEDevice::startAdvertising() ;
 }
 
@@ -33,6 +32,7 @@ void ZSServer::onConnect(BLEServer *srv) {
 void ZSServer::onDisconnect(BLEServer *srv) {
   Serial.println("Disconnected") ;
   client_connected = false ;
+  // server->setCallbacks(nullptr) ;
   // startAdvertizing() ;
 }
 

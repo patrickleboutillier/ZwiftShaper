@@ -13,7 +13,7 @@ class ZSClient : public BLEAdvertisedDeviceCallbacks {
     BLEAdvertisedDevice *remote_device ;
 
   public:
-    ZSClient(ZwiftShaper *zs, BLECLient *ble_client, BLEServer *ble_server) ;
+    ZSClient(ZwiftShaper *zs, BLEClient *ble_client, BLEServer *ble_server) ;
     bool findServer(int timeout) ;
     void onResult(BLEAdvertisedDevice adev) ;
     bool connectToServer() ;

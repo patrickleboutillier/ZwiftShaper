@@ -5,6 +5,11 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 
+class ZwiftShaper ;
+#include "ZSClient.h"
+#include "ZSServer.h"
+
+
 #define GEN_ACC_UUID            (uint16_t)0x1800
 #define GEN_ATTR_UUID           (uint16_t)0x1801
 
@@ -17,9 +22,6 @@
 #define CPS_SL_UUID             (uint16_t)0x2A5D
 #define CPS_CPM_UUID            (uint16_t)0x2A63
 
-
-class ZSClient ; 
-class ZSServer ; 
 
 class ZwiftShaper {
   private:
