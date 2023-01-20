@@ -17,6 +17,7 @@ class BLEProxy : public BLEServerCallbacks {
     BLEServer *server ;
     bool server_connected ;
     bool client_connected ;
+    std::map<BLECharacteristic*, BLERemoteCharacteristic*> chrmap ;
 
   public:
     BLEProxy(const char *name){
@@ -68,7 +69,7 @@ class BLEProxy : public BLEServerCallbacks {
         std::map<std::string, BLERemoteCharacteristic*>::iterator it ;
         for (it = cm->begin() ; it != cm->end() ; it++){
           std::string uuid = it->first ;
-          BLERemoteCharacteristic *remchr = it->second ;
+          BLERemoteCharacteristic *rc = it->second ;
           Serial.print("  - Found characteristic ") ;
           Serial.println(rc->toString().c_str()) ;
           uint32_t properties =
@@ -81,10 +82,11 @@ class BLEProxy : public BLEServerCallbacks {
       
           // Setup this characteristic on our server
           BLECharacteristic *c = new BLECharacteristic(BLEUUID(rc->getUUID()), properties) ;
-          c->setCallbacks(shaper->getZSServer()) ;
+          c->setCallbacks(this) ;
           s->addCharacteristic(c) ;
           // TODO: Descriptors
           // indoorBike.addDescriptor(new BLE2902()) ;
+          chrmap.insert({c, rc}) ;
 
           if (rc->canNotify()){
             // We need to set up a callback to handle these notifications
@@ -134,11 +136,9 @@ class BLEProxy : public BLEServerCallbacks {
     void onRead(BLECharacteristic *chr){
       Serial.print("Received read for chr ") ;
       Serial.println(chr->getUUID().toString().c_str()) ;
-        
-      //BLERemoteService *remsrvc = client->getService(chr->getService()->getUUID()) ;
-      //BLERemoteCharacteristic *remchr = remsrvc->getCharacteristic(chr->getUUID()) ;
-      //std::string val = remchr->readValue() ;
-      //chr->setValue(val) ;
+
+      std::string val = chrmap[chr]->readValue() ;
+      chr->setValue(val) ;
     }
 
     void ZSServer::onWrite(BLECharacteristic *chr){
