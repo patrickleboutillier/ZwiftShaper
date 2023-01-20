@@ -117,7 +117,7 @@ class BLEProxy : public BLEServerCallbacks {
         return ;
       }
       if (! client_connected){
-        Serial.println("Client connection") ;
+        Serial.println("Client connected") ;
         client_connected = true ;
         return ;
       }
