@@ -8,21 +8,25 @@ ZwiftShaper::ZwiftShaper(){
   name = "ZS[]" ;
   BLEDevice::init(name.c_str()) ;
   ble_client = BLEDevice::createClient() ;
-  client = new ZSClient(this) ;
   ble_server = BLEDevice::createServer() ;
-  server = new ZSServer(this) ;
+  zs_client = new ZSClient(this, ble_client, ble_server) ;
+  zs_server = new ZSServer(this, ble_server, ble_client) ;
 }
 
 ZSClient *ZwiftShaper::getZSClient(){
-  return client ;
+  return zs_client ;
 }
 
 ZSServer *ZwiftShaper::getZSServer(){
-  return server ;
+  return zs_server ;
 }
 
 BLEServer *ZwiftShaper::getBLEServer(){
-  return server->getServer() ;
+  return ble_server ;
+}
+
+BLEClient *ZwiftShaper::getBLEClient(){
+  return ble_client ;
 }
 
 std::string ZwiftShaper::getName(){

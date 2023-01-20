@@ -16,7 +16,6 @@ void setup() {
   trainer = ZS->getZSServer() ;
   
   if (game->findServer(10)){
-    delay(1000) ;
     if (game->connectToServer()){
       game->setupServices() ;
       trainer->startAdvertizing() ;

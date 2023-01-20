@@ -25,14 +25,15 @@ class ZwiftShaper {
   private:
     std::string name ;
     BLEClient *ble_client ;
-    ZSClient *client ;
     BLEServer *ble_server ;
-    ZSServer *server ;
+    ZSClient *zs_client ;
+    ZSServer *zs_server ;
   public:
     ZwiftShaper() ;
+    BLEClient *getBLEClient() ;
+    BLEServer *getBLEServer() ;
     ZSClient *getZSClient() ;
     ZSServer *getZSServer() ;
-    BLEServer *getBLEServer() ;
     std::string getName() ;
     void setName(std::string n) ;
 } ;

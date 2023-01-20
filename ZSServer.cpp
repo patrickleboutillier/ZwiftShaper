@@ -1,9 +1,10 @@
 #include "ZSServer.h"
 
 
-ZSServer::ZSServer(ZwiftShaper *zs){
+ZSServer::ZSServer(ZwiftShaper *zs, BLEServer *ble_server, BLEClient *ble_client){
   shaper = zs ;
-  server = BLEDevice::createServer() ;
+  server = ble_server ;
+  client = ble_client ;
   client_connected = false ;
 }
 
