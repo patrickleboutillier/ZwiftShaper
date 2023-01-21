@@ -52,7 +52,12 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
     }
 
     
-    void onNotify(BLERemoteCharacteristic *rc, uint8_t *data, size_t length){
+    std::string onNotify(BLERemoteCharacteristic *rc, std::string data){
+      if (rc->getUUID().equals(BLEUUID(CPS_CPM_UUID))){
+        return this->onCyclingPowerMeasurement(rc, data) ;
+      }
+
+      return data ;
     }
 
     
@@ -61,25 +66,33 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
     }
 
 
-    void onCyclingPowerMeasurement(BLERemoteCharacteristic *rc, uint8_t *data, size_t length, bool is_notify){
-      if (length >= 4){
+    std::string onCyclingPowerMeasurement(BLERemoteCharacteristic *rc, std::string s){
+      std::vector<uint8_t> v(s.begin(), s.end()) ;
+      uint8_t *data = &v[0] ;
+      
+      if (s.length() >= 4){
         uint8_t offset = 0 ;
         uint16_t flags = data[offset + 1] << 8 | data[offset] ;
         offset += 2 ;
-        Serial.print("Flags: 0b") ;
-        Serial.println(flags, BIN) ;
+        // Serial.print("Flags: 0b") ;
+        // println(flags, BIN) ;
     
         int16_t power = data[offset + 1] << 8 | data[offset] ;
-        offset += 2 ;
         Serial.print("Power: ") ;
         Serial.print(power) ;
-        Serial.println("w ") ;
-    
+        Serial.print("w -> ") ;
+        power = 10 ;
+        data[offset + 1] = power >> 8 ;
+        data[offset] = power & 0xFF ;
+        Serial.print(power) ;
+        Serial.println("w") ;
+        offset += 2 ;
+                    
         if (flags & 0b10000){
           uint32_t wrevs = data[offset+3] << 24 | data[offset+2] << 16 | data[offset+1] << 8 | data[offset] ;
           offset += 4 ;
-          Serial.print("Wheel Revolutions: ") ;
-          Serial.println(wrevs) ;
+          //Serial.print("Wheel Revolutions: ") ;
+          //Serial.println(wrevs) ;
           uint16_t lwet = data[offset + 1] << 8 | data[offset] ;
           offset += 2 ;
         }
@@ -87,12 +100,14 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
         if (flags & 0b100000){
           uint32_t crevs = data[offset + 1] << 8 | data[offset] ;
           offset += 2 ;
-          Serial.print("Crank Revolutions: ") ;
-          Serial.println(crevs) ;
+          //Serial.print("Crank Revolutions: ") ;
+          //Serial.println(crevs) ;
           uint16_t lwet = data[offset + 1] << 8 | data[offset] ;
           offset += 2 ;
         }
       }
+
+      return std::string(reinterpret_cast<const char *>(data), s.length()) ;
     }
 } ;
 

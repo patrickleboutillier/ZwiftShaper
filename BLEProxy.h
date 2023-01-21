@@ -14,7 +14,7 @@
 class BLEProxyCallbacks {
   public:
     virtual std::string onRead(BLECharacteristic *c, std::string data) = 0 ;
-    virtual void onNotify(BLERemoteCharacteristic *rc, uint8_t *data, size_t length) = 0 ;
+    virtual std::string onNotify(BLERemoteCharacteristic *rc, std::string data) = 0 ;
     virtual void onDisconnect(bool server_connected, bool client_connected) = 0 ;
 } ;
 
@@ -104,23 +104,10 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
 
           if (rc->canNotify()){
             // We need to set up a callback to handle these notifications
-            rc->registerForNotify([=](BLERemoteCharacteristic* blerc, uint8_t* data, size_t length, bool is_notify){
-              if ((! this->server_connected)||(! this->client_connected)){
-                return ;
+            rc->registerForNotify([=](BLERemoteCharacteristic *rc, uint8_t *data, size_t length, bool is_notify){
+              if (is_notify){
+                this->onNotify(rc, c, std::string(reinterpret_cast<const char *>(data), length)) ;
               }
-
-              Serial.print("Received notification for ") ;
-              Serial.println(blerc->getUUID().toString().c_str()) ;
-              
-              if (callbacks != nullptr){
-                callbacks->onNotify(blerc, data, length) ;
-              }
-              
-              // Now that we had a chance to modify the data, we forward it through our server counterpart:
-              c->setValue(data, length) ;
-              c->notify() ;
-
-              Serial.println("- Forwarded") ;
             }) ;
           }
 
@@ -131,10 +118,10 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
             std::string uuid = it->first ;
             BLERemoteDescriptor *rd = it->second ;
             Serial.print("  - Found descriptor ") ;
-            Serial.println(rd->toString().c_str()) ;
+            Serial.println(uuid.c_str()) ;
 
             // Setup this descriptor on our server
-            BLEDescriptor *d = new BLEDescriptor(BLEUUID(rd->getUUID()), 256) ;
+            BLEDescriptor *d = new BLEDescriptor(BLEUUID(rd->getUUID()), 512) ;
             d->setCallbacks(this) ;
             c->addDescriptor(d) ;
           }
@@ -167,45 +154,63 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
     }
 
 
-    // Transfer read over to the client and store it
-    void onRead(BLECharacteristic *chr, esp_ble_gatts_cb_param_t *param){
-      Serial.print("Received read for chr ") ;
-      Serial.println(chr->getUUID().toString().c_str()) ;
-  
+    // When Client receives a notification
+    void onNotify(BLERemoteCharacteristic *rc, BLECharacteristic *c, std::string data){
       events.push_back([=]{
-        if ((! this->server_connected)||(! this->client_connected)){
-          return ;
+        //Serial.print("Received notification for ") ;
+        //Serial.println(rc->getUUID().toString().c_str()) ;
+
+        std::string mdata = data ;
+        if (this->callbacks != nullptr){
+          mdata = this->callbacks->onNotify(rc, mdata) ;
         }
+        
+        // Now that we had a chance to modify the data, we forward it through our server counterpart:
+        c->setValue(mdata) ;
+        c->notify() ;
+        
+        //Serial.println("- Forwarded") ;
+      }) ;
+    }
+
+
+    // When Server receives a characteristic read
+    void onRead(BLECharacteristic *chr, esp_ble_gatts_cb_param_t *param){
+      events.push_back([=]{
+        Serial.print("Received read for chr ") ;
+        Serial.println(chr->getUUID().toString().c_str()) ;
+  
         std::string val = this->chrmap[chr]->readValue() ;
         chr->setValue(val) ;
+        
+        Serial.println("- Forwarded") ;
       }) ;
-
-      Serial.println("- Forwarded") ;
     }
 
 
+    // When Server receives a characteristic write
     void onWrite(BLECharacteristic *chr, esp_ble_gatts_cb_param_t *param){
-      Serial.print("Received write for chr ") ;
-      Serial.println(chr->getUUID().toString().c_str()) ;
-
+      bool response = param->write.need_rsp ;
       events.push_back([=]{
-        if ((! this->server_connected)||(! this->client_connected)){
-          return ;
-        }
+        Serial.print("Received write for chr ") ;
+        Serial.println(chr->getUUID().toString().c_str()) ;
+        
         std::string val = chr->getValue() ;
-        this->chrmap[chr]->writeValue(val, param->write.need_rsp) ;
-      }) ;
+        this->chrmap[chr]->writeValue(val, response) ;
       
-      Serial.println("- Forwarded") ;
+        Serial.println("- Forwarded") ;
+      }) ;
     }
 
 
+    // When Server receives a descriptor read
     void onRead(BLEDescriptor *d){
       Serial.print("Received read for desc ") ;
       Serial.println(d->getUUID().toString().c_str()) ;
     }    
     
 
+    // When Server receives a descriptor write
     void onWrite(BLEDescriptor *d){
       Serial.print("Received write for desc ") ;
       Serial.println(d->getUUID().toString().c_str()) ;
@@ -213,16 +218,21 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
 
     
     void processEvents(){
-      if (events.size()){
-        Serial.print("Processing ") ;
-        Serial.print(events.size()) ;
-        Serial.println(" events") ;
-        std::vector<std::function<void()>>::iterator it ;
-        for (it = events.begin() ; it != events.end() ; it++){
-          (*it)() ;
-        }
-        events.clear() ;
+      if (events.size() == 0){
+        return ;
       }
+      if ((! this->server_connected)||(! this->client_connected)){
+        return ;
+      }
+
+      //Serial.print("Processing ") ;
+      //Serial.print(events.size()) ;
+      //Serial.println(" events") ;
+      std::vector<std::function<void()>>::iterator it ;
+      for (it = events.begin() ; it != events.end() ; it++){
+        (*it)() ;
+      }
+      events.clear() ;
     }
 } ;
 

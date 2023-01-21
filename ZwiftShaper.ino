@@ -17,7 +17,7 @@ void setup() {
   BLEScan *scan = BLEDevice::getScan() ;
   scan->setAdvertisedDeviceCallbacks(ZS) ;
   scan->setActiveScan(true) ;
-  scan->start(10) ;
+  scan->start(15) ;
 
   BLEAdvertisedDevice *rd = ZS->getRemoteDevice() ;
   if (rd != nullptr){
