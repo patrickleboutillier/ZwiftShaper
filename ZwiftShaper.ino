@@ -5,11 +5,26 @@ ZwiftShaper *ZS = nullptr ;
 BLEProxy *PROXY = nullptr ;
 
 
+class MyZwiftShaperCallbacks : public ZwiftShaperCallbacks {
+    // Called when trainer send power value to game
+    int16_t onPower(int16_t watts){
+      return 120 ;
+    }
+    // Called when game sends grade value to trainer
+    float onGrade(float grade){
+      Serial.print("Grade: ") ;
+      Serial.println(grade) ;
+      return grade ;
+    }
+} ;
+
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200) ;
 
   ZS = new ZwiftShaper() ;
+  ZS->setCallbacks(new MyZwiftShaperCallbacks()) ;
   PROXY = new BLEProxy("ZS") ;
   PROXY->setCallbacks(ZS) ;
   

@@ -25,18 +25,34 @@
 #define TACX_FEC_WRITE_UUID     "6E40FEC3-B5A3-F393-E0A9-E50E24DCCA9E"
 
 
+class ZwiftShaperCallbacks {
+  public:
+    virtual int16_t onPower(int16_t watts) = 0 ;
+    virtual float onGrade(float grade) = 0 ;
+} ;
+
+
 class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallbacks {
   private:
     BLEAdvertisedDevice *remote_device ;
+    ZwiftShaperCallbacks *callbacks ;
+
   public:
     ZwiftShaper(){
       remote_device = nullptr ;
     }
 
+
+    void setCallbacks(ZwiftShaperCallbacks *c){
+      callbacks = c ;
+    }
+
+
     BLEAdvertisedDevice *getRemoteDevice(){
       return remote_device ;
     }
     
+
     void onResult(BLEAdvertisedDevice adev){
       // We have found a device, let us now see if it contains one of the services we are looking for.
       if (adev.isAdvertisingService(BLEUUID(CPS_UUID))){ // Cycling Power Service
@@ -64,6 +80,7 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
       return data ;
     }
     
+
     std::string onNotify(BLERemoteCharacteristic *rc, std::string data){
       if (rc->getUUID().equals(BLEUUID(CPS_CPM_UUID))){
         return onCyclingPowerMeasurement(rc, data) ;
@@ -83,10 +100,14 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
       if ((sync == 0xA4)&&(len == 9)&&(type == 0x4E)){
         uint8_t page = data[4] ;
         if (page == 0x33){
-          uint16_t grade = data[10] << 8 | data[9] ;
           // Simulated Grade(%) = (Raw Grade Value x 0.01%) – 200.00%
-          Serial.print("GRADE:") ;
-          Serial.println(grade) ; 
+          float grade = ((data[10] << 8 | data[9]) - 20000) / 100.0 ;
+          if (callbacks){
+            grade = callbacks->onGrade(grade) ;
+          }
+          uint16_t g = (uint16_t)((grade * 100.0) + 20000) ;
+          data[10] = g >> 8 ;
+          data[9] = g & 0xFF ;
         }
       }    
       
@@ -110,14 +131,11 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
         // println(flags, BIN) ;
     
         int16_t power = data[offset + 1] << 8 | data[offset] ;
-        Serial.print("Power: ") ;
-        Serial.print(power) ;
-        Serial.print("w -> ") ;
-        power = 120 ;
+        if (callbacks){
+          power = callbacks->onPower(power) ;
+        }
         data[offset + 1] = power >> 8 ;
         data[offset] = power & 0xFF ;
-        Serial.print(power) ;
-        Serial.println("w") ;
         offset += 2 ;
                     
         if (flags & 0b10000){

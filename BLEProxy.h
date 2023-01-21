@@ -27,7 +27,8 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
     BLEServer *server ;
     bool server_connected ;
     bool client_connected ;
-    std::map<BLECharacteristic*, BLERemoteCharacteristic*> chrmap ;
+    std::map<BLECharacteristic*, BLERemoteCharacteristic*> charmap ;
+    std::map<BLEDescriptor*, BLERemoteDescriptor*> descmap ;
     std::vector<std::function<void()>> events ;
     BLEProxyCallbacks *callbacks ;
   
@@ -47,6 +48,8 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
     void setCallbacks(BLEProxyCallbacks *c){
       callbacks = c ;
     }
+
+    
     /*
       Call this method once an appripriate device has been chosen as the proxy's "server".
       This method will clone the BLE profile of the "server" into our BLEServer instance.
@@ -101,7 +104,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
           BLECharacteristic *c = new BLECharacteristic(BLEUUID(rc->getUUID()), properties) ;
           c->setCallbacks(this) ;
           s->addCharacteristic(c) ;
-          chrmap.insert({c, rc}) ;
+          charmap.insert({c, rc}) ;
 
           if (rc->canNotify()){
             // We need to set up a callback to handle these notifications
@@ -125,6 +128,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
             BLEDescriptor *d = new BLEDescriptor(BLEUUID(rd->getUUID()), 512) ;
             d->setCallbacks(this) ;
             c->addDescriptor(d) ;
+            descmap.insert({d, rd}) ;
           }
         }
 
@@ -181,7 +185,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
         Serial.print("Received read for chr ") ;
         Serial.println(chr->getUUID().toString().c_str()) ;
   
-        std::string val = this->chrmap[chr]->readValue() ;
+        std::string val = this->charmap[chr]->readValue() ;
         if (this->callbacks != nullptr){
           val = this->callbacks->onRead(chr, val) ;
         }
@@ -203,7 +207,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
         if (this->callbacks != nullptr){
           val = this->callbacks->onWrite(chr, val) ;
         }
-        this->chrmap[chr]->writeValue(val, response) ;
+        this->charmap[chr]->writeValue(val, response) ;
       
         Serial.println("- Forwarded") ;
       }) ;
@@ -212,15 +216,25 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
 
     // When Server receives a descriptor read
     void onRead(BLEDescriptor *d){
-      Serial.print("Received read for desc ") ;
-      Serial.println(d->getUUID().toString().c_str()) ;
+      events.push_back([=]{
+        Serial.print("Received read for desc ") ;
+        Serial.println(d->getUUID().toString().c_str()) ;
+        
+        std::string val = this->descmap[d]->readValue() ;
+        //if (this->callbacks != nullptr){
+        //  val = this->callbacks->onRead(chr, val) ;
+        //}
+        d->setValue(val) ;
+        
+        Serial.println("- Forwarded") ;
+      }) ; 
     }    
     
 
     // When Server receives a descriptor write
     void onWrite(BLEDescriptor *d){
       Serial.print("Received write for desc ") ;
-      Serial.println(d->getUUID().toString().c_str()) ;
+      Serial.println(d->getUUID().toString().c_str()) ;     
     }
 
     
