@@ -4,10 +4,7 @@
 #include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
-
-class ZwiftShaper ;
-#include "ZSClient.h"
-#include "ZSServer.h"
+#include "BLEProxy.h"
 
 
 #define GEN_ACC_UUID            (uint16_t)0x1800
@@ -23,21 +20,80 @@ class ZwiftShaper ;
 #define CPS_CPM_UUID            (uint16_t)0x2A63
 
 
-class ZwiftShaper {
+class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallbacks {
   private:
-    std::string name ;
-    BLEClient *ble_client ;
-    BLEServer *ble_server ;
-    ZSClient *zs_client ;
-    ZSServer *zs_server ;
+    BLEAdvertisedDevice *remote_device ;
   public:
-    ZwiftShaper() ;
-    BLEClient *getBLEClient() ;
-    BLEServer *getBLEServer() ;
-    ZSClient *getZSClient() ;
-    ZSServer *getZSServer() ;
-    std::string getName() ;
-    void setName(std::string n) ;
+    ZwiftShaper(){
+      remote_device = nullptr ;
+    }
+
+    BLEAdvertisedDevice *getRemoteDevice(){
+      return remote_device ;
+    }
+    
+    void onResult(BLEAdvertisedDevice adev){
+      // We have found a device, let us now see if it contains one of the services we are looking for.
+      if (adev.isAdvertisingService(BLEUUID(CPS_UUID))){ // Cycling Power Service
+        // For know, just pick the first one we find...
+        Serial.print("- Found device '") ;
+        Serial.print(adev.getName().c_str()) ;
+        Serial.print("': ")  ;
+        Serial.println(adev.toString().c_str()) ;
+        Serial.println("  - Device with Cycling Power Service found: stopping scan") ;
+        remote_device = new BLEAdvertisedDevice(adev) ;
+        BLEDevice::getScan()->stop() ;
+      }
+    }
+
+
+    std::string onRead(BLECharacteristic *c, std::string data){   
+      return data ;
+    }
+
+    
+    void onNotify(BLERemoteCharacteristic *rc, uint8_t *data, size_t length){
+    }
+
+    
+    void onDisconnect(bool server_connected, bool client_connected){
+      ESP.restart() ;
+    }
+
+
+    void onCyclingPowerMeasurement(BLERemoteCharacteristic *rc, uint8_t *data, size_t length, bool is_notify){
+      if (length >= 4){
+        uint8_t offset = 0 ;
+        uint16_t flags = data[offset + 1] << 8 | data[offset] ;
+        offset += 2 ;
+        Serial.print("Flags: 0b") ;
+        Serial.println(flags, BIN) ;
+    
+        int16_t power = data[offset + 1] << 8 | data[offset] ;
+        offset += 2 ;
+        Serial.print("Power: ") ;
+        Serial.print(power) ;
+        Serial.println("w ") ;
+    
+        if (flags & 0b10000){
+          uint32_t wrevs = data[offset+3] << 24 | data[offset+2] << 16 | data[offset+1] << 8 | data[offset] ;
+          offset += 4 ;
+          Serial.print("Wheel Revolutions: ") ;
+          Serial.println(wrevs) ;
+          uint16_t lwet = data[offset + 1] << 8 | data[offset] ;
+          offset += 2 ;
+        }
+    
+        if (flags & 0b100000){
+          uint32_t crevs = data[offset + 1] << 8 | data[offset] ;
+          offset += 2 ;
+          Serial.print("Crank Revolutions: ") ;
+          Serial.println(crevs) ;
+          uint16_t lwet = data[offset + 1] << 8 | data[offset] ;
+          offset += 2 ;
+        }
+      }
+    }
 } ;
 
 

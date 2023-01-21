@@ -2,6 +2,7 @@
 #define BLEPROXY_H
 
 
+#include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 
@@ -10,7 +11,15 @@
 #define GEN_ATTR_UUID           (uint16_t)0x1801
 
 
-class BLEProxy : public BLEServerCallbacks {
+class BLEProxyCallbacks {
+  public:
+    virtual std::string onRead(BLECharacteristic *c, std::string data) = 0 ;
+    virtual void onNotify(BLERemoteCharacteristic *rc, uint8_t *data, size_t length) = 0 ;
+    virtual void onDisconnect(bool server_connected, bool client_connected) = 0 ;
+} ;
+
+
+class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, public BLEDescriptorCallbacks {
   private:
     std::string dev_name ;
     BLEClient *client ;
@@ -18,19 +27,25 @@ class BLEProxy : public BLEServerCallbacks {
     bool server_connected ;
     bool client_connected ;
     std::map<BLECharacteristic*, BLERemoteCharacteristic*> chrmap ;
-
+    std::vector<std::function<void()>> events ;
+    BLEProxyCallbacks *callbacks ;
+  
   public:
     BLEProxy(const char *name){
       dev_name = name ;
       BLEDevice::init(name) ;
-      ble_client = BLEDevice::createClient() ;
-      ble_server = BLEDevice::createServer() ;
-      ble_server->setCallbacks(this) ;
+      client = BLEDevice::createClient() ;
+      server = BLEDevice::createServer() ;
+      server->setCallbacks(this) ;
       server_connected = false ;
       client_connected = false ;
+      callbacks = nullptr ;
     }
 
 
+    void setCallbacks(BLEProxyCallbacks *c){
+      callbacks = c ;
+    }
     /*
       Call this method once an appripriate device has been chosen as the proxy's "server".
       This method will clone the BLE profile of the "server" into our BLEServer instance.
@@ -44,8 +59,9 @@ class BLEProxy : public BLEServerCallbacks {
 
       // Connect to the remote BLE Server.
       client->connect(adev) ;
-      dev_name = dev_name + std::string("[") + getName() + std::string("]") ;
-
+      dev_name = dev_name + std::string("[") + adev->getName() + std::string("]") ;
+      ::esp_ble_gap_set_device_name(dev_name.c_str()) ;
+      
       // Now we want to get all the services offered by the device, with their characteristics, 
       // and register them with our server and setup callbacks for the ones we want to change.
       std::map<std::string, BLERemoteService*> *sm = client->getServices() ;
@@ -84,8 +100,6 @@ class BLEProxy : public BLEServerCallbacks {
           BLECharacteristic *c = new BLECharacteristic(BLEUUID(rc->getUUID()), properties) ;
           c->setCallbacks(this) ;
           s->addCharacteristic(c) ;
-          // TODO: Descriptors
-          // indoorBike.addDescriptor(new BLE2902()) ;
           chrmap.insert({c, rc}) ;
 
           if (rc->canNotify()){
@@ -97,13 +111,32 @@ class BLEProxy : public BLEServerCallbacks {
 
               Serial.print("Received notification for ") ;
               Serial.println(blerc->getUUID().toString().c_str()) ;
-
+              
+              if (callbacks != nullptr){
+                callbacks->onNotify(blerc, data, length) ;
+              }
+              
               // Now that we had a chance to modify the data, we forward it through our server counterpart:
               c->setValue(data, length) ;
               c->notify() ;
 
-              Serial.print("- Forwarded ") ;
+              Serial.println("- Forwarded") ;
             }) ;
+          }
+
+          // Descriptors
+          std::map<std::string, BLERemoteDescriptor*> *dm = rc->getDescriptors() ;
+          std::map<std::string, BLERemoteDescriptor*>::iterator it ;
+          for (it = dm->begin() ; it != dm->end() ; it++){
+            std::string uuid = it->first ;
+            BLERemoteDescriptor *rd = it->second ;
+            Serial.print("  - Found descriptor ") ;
+            Serial.println(rd->toString().c_str()) ;
+
+            // Setup this descriptor on our server
+            BLEDescriptor *d = new BLEDescriptor(BLEUUID(rd->getUUID()), 256) ;
+            d->setCallbacks(this) ;
+            c->addDescriptor(d) ;
           }
         }
 
@@ -128,24 +161,69 @@ class BLEProxy : public BLEServerCallbacks {
 
     void onDisconnect(BLEServer *srv){
       Serial.println("Server or client disconnected") ;
-      ESP.restart() ;
+      if (callbacks != nullptr){
+        callbacks->onDisconnect(server_connected, client_connected) ;
+      }
     }
 
 
     // Transfer read over to the client and store it
-    void onRead(BLECharacteristic *chr){
+    void onRead(BLECharacteristic *chr, esp_ble_gatts_cb_param_t *param){
       Serial.print("Received read for chr ") ;
       Serial.println(chr->getUUID().toString().c_str()) ;
+  
+      events.push_back([=]{
+        if ((! this->server_connected)||(! this->client_connected)){
+          return ;
+        }
+        std::string val = this->chrmap[chr]->readValue() ;
+        chr->setValue(val) ;
+      }) ;
 
-      std::string val = chrmap[chr]->readValue() ;
-      chr->setValue(val) ;
+      Serial.println("- Forwarded") ;
     }
 
-    void ZSServer::onWrite(BLECharacteristic *chr){
+
+    void onWrite(BLECharacteristic *chr, esp_ble_gatts_cb_param_t *param){
       Serial.print("Received write for chr ") ;
       Serial.println(chr->getUUID().toString().c_str()) ;
+
+      events.push_back([=]{
+        if ((! this->server_connected)||(! this->client_connected)){
+          return ;
+        }
+        std::string val = chr->getValue() ;
+        this->chrmap[chr]->writeValue(val, param->write.need_rsp) ;
+      }) ;
+      
+      Serial.println("- Forwarded") ;
     }
 
+
+    void onRead(BLEDescriptor *d){
+      Serial.print("Received read for desc ") ;
+      Serial.println(d->getUUID().toString().c_str()) ;
+    }    
+    
+
+    void onWrite(BLEDescriptor *d){
+      Serial.print("Received write for desc ") ;
+      Serial.println(d->getUUID().toString().c_str()) ;
+    }
+
+    
+    void processEvents(){
+      if (events.size()){
+        Serial.print("Processing ") ;
+        Serial.print(events.size()) ;
+        Serial.println(" events") ;
+        std::vector<std::function<void()>>::iterator it ;
+        for (it = events.begin() ; it != events.end() ; it++){
+          (*it)() ;
+        }
+        events.clear() ;
+      }
+    }
 } ;
 
 

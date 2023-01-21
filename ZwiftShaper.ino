@@ -1,10 +1,8 @@
 #include "ZwiftShaper.h"
-#include "ZSClient.h"
-#include "ZSServer.h"
+
 
 ZwiftShaper *ZS = nullptr ;
-ZSClient *game = nullptr ;
-ZSServer *trainer = nullptr ;
+BLEProxy *PROXY = nullptr ;
 
 
 void setup() {
@@ -12,19 +10,26 @@ void setup() {
   Serial.begin(115200) ;
 
   ZS = new ZwiftShaper() ;
-  game = ZS->getZSClient() ;
-  trainer = ZS->getZSServer() ;
+  PROXY = new BLEProxy("ZS") ;
+  PROXY->setCallbacks(ZS) ;
   
-  if (game->findServer(10)){
-    if (game->connectToServer()){
-      game->setupServices() ;
-      trainer->startAdvertising() ;
-      delay(300000) ;
-      game->disconnectFromServer() ;
-    }
+  Serial.println("Starting scan...") ;
+  BLEScan *scan = BLEDevice::getScan() ;
+  scan->setAdvertisedDeviceCallbacks(ZS) ;
+  scan->setActiveScan(true) ;
+  scan->start(10) ;
+
+  BLEAdvertisedDevice *rd = ZS->getRemoteDevice() ;
+  if (rd != nullptr){
+    PROXY->cloneBLEProfile(rd) ;
+
+    Serial.println("Starting advertisement...") ;
+    BLEDevice::startAdvertising() ;
   }
 }
 
+
 void loop() {
   // put your main code here, to run repeatedly:
+  PROXY->processEvents() ;
 }
