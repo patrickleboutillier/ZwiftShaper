@@ -14,6 +14,7 @@
 class BLEProxyCallbacks {
   public:
     virtual std::string onRead(BLECharacteristic *c, std::string data) = 0 ;
+    virtual std::string onWrite(BLECharacteristic *c, std::string data) = 0 ;
     virtual std::string onNotify(BLERemoteCharacteristic *rc, std::string data) = 0 ;
     virtual void onDisconnect(bool server_connected, bool client_connected) = 0 ;
 } ;
@@ -181,6 +182,9 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
         Serial.println(chr->getUUID().toString().c_str()) ;
   
         std::string val = this->chrmap[chr]->readValue() ;
+        if (this->callbacks != nullptr){
+          val = this->callbacks->onRead(chr, val) ;
+        }
         chr->setValue(val) ;
         
         Serial.println("- Forwarded") ;
@@ -196,6 +200,9 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
         Serial.println(chr->getUUID().toString().c_str()) ;
         
         std::string val = chr->getValue() ;
+        if (this->callbacks != nullptr){
+          val = this->callbacks->onWrite(chr, val) ;
+        }
         this->chrmap[chr]->writeValue(val, response) ;
       
         Serial.println("- Forwarded") ;

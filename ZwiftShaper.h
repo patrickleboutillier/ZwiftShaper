@@ -19,6 +19,11 @@
 #define CPS_SL_UUID             (uint16_t)0x2A5D
 #define CPS_CPM_UUID            (uint16_t)0x2A63
 
+//Tacx FE-C service and characteristics
+#define TACX_FEC_UUID           "6E40FEC1-B5A3-F393-E0A9-E50E24DCCA9E"
+#define TACX_FEC_READ_UUID      "6E40FEC2-B5A3-F393-E0A9-E50E24DCCA9E"
+#define TACX_FEC_WRITE_UUID     "6E40FEC3-B5A3-F393-E0A9-E50E24DCCA9E"
+
 
 class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallbacks {
   private:
@@ -51,15 +56,42 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
       return data ;
     }
 
+
+    std::string onWrite(BLECharacteristic *c, std::string data){
+      if (c->getUUID().equals(BLEUUID(TACX_FEC_WRITE_UUID))){ 
+        return OnTacxFECWrite(c, data) ;
+      }
+      return data ;
+    }
     
     std::string onNotify(BLERemoteCharacteristic *rc, std::string data){
       if (rc->getUUID().equals(BLEUUID(CPS_CPM_UUID))){
-        return this->onCyclingPowerMeasurement(rc, data) ;
+        return onCyclingPowerMeasurement(rc, data) ;
       }
 
       return data ;
     }
 
+
+    std::string OnTacxFECWrite(BLECharacteristic *c, std::string s){
+      std::vector<uint8_t> v(s.begin(), s.end()) ;
+      uint8_t *data = &v[0] ;
+
+      uint8_t sync = data[0] ;
+      uint8_t len = data[1] ;
+      uint8_t type = data[2] ;
+      if ((sync == 0xA4)&&(len == 9)&&(type == 0x4E)){
+        uint8_t page = data[4] ;
+        if (page == 0x33){
+          uint16_t grade = data[10] << 8 | data[9] ;
+          // Simulated Grade(%) = (Raw Grade Value x 0.01%) – 200.00%
+          Serial.print("GRADE:") ;
+          Serial.println(grade) ; 
+        }
+      }    
+      
+      return std::string(reinterpret_cast<const char *>(data), s.length()) ;
+    }
     
     void onDisconnect(bool server_connected, bool client_connected){
       ESP.restart() ;
@@ -81,7 +113,7 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
         Serial.print("Power: ") ;
         Serial.print(power) ;
         Serial.print("w -> ") ;
-        power = 10 ;
+        power = 120 ;
         data[offset + 1] = power >> 8 ;
         data[offset] = power & 0xFF ;
         Serial.print(power) ;
