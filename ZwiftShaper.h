@@ -27,18 +27,22 @@
 
 class ZwiftShaperCallbacks {
   public:
-    virtual int16_t onPower(int16_t watts) = 0 ;
+    virtual uint16_t onPower(uint16_t watts) = 0 ;
+    virtual void onCadence(uint16_t rpms) = 0 ;
     virtual float onGrade(float grade) = 0 ;
 } ;
 
 
 class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallbacks {
   private:
+    uint16_t prev_crevs, prev_lcet ;
     BLEAdvertisedDevice *remote_device ;
     ZwiftShaperCallbacks *callbacks ;
 
   public:
     ZwiftShaper(){
+      prev_crevs = 0 ;
+      prev_lcet = 0 ;
       remote_device = nullptr ;
     }
 
@@ -130,7 +134,7 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
         // Serial.print("Flags: 0b") ;
         // println(flags, BIN) ;
     
-        int16_t power = data[offset + 1] << 8 | data[offset] ;
+        uint16_t power = data[offset + 1] << 8 | data[offset] ;
         if (callbacks){
           power = callbacks->onPower(power) ;
         }
@@ -148,12 +152,23 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
         }
     
         if (flags & 0b100000){
-          uint32_t crevs = data[offset + 1] << 8 | data[offset] ;
+          uint16_t crevs = data[offset + 1] << 8 | data[offset] ;
           offset += 2 ;
           //Serial.print("Crank Revolutions: ") ;
           //Serial.println(crevs) ;
-          uint16_t lwet = data[offset + 1] << 8 | data[offset] ;
+          uint16_t lcet = data[offset + 1] << 8 | data[offset] ;
           offset += 2 ;
+
+          uint16_t cr = crevs - prev_crevs ;
+          if ((lcet > prev_lcet)&&(cr > 0)){
+            uint16_t dur = lcet - prev_lcet ;
+            uint16_t rpms = (cr * 1024 * 60) / dur ;
+            if (callbacks){
+              callbacks->onCadence(rpms) ;
+            }
+          }
+          prev_crevs = crevs ;
+          prev_lcet = lcet ;
         }
       }
 

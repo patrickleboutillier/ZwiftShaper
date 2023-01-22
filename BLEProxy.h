@@ -200,8 +200,8 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
     void onWrite(BLECharacteristic *chr, esp_ble_gatts_cb_param_t *param){
       bool response = param->write.need_rsp ;
       events.push_back([=]{
-        Serial.print("Received write for chr ") ;
-        Serial.println(chr->getUUID().toString().c_str()) ;
+        //Serial.print("Received write for chr ") ;
+        //Serial.println(chr->getUUID().toString().c_str()) ;
         
         std::string val = chr->getValue() ;
         if (this->callbacks != nullptr){
@@ -209,7 +209,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
         }
         this->charmap[chr]->writeValue(val, response) ;
       
-        Serial.println("- Forwarded") ;
+        //Serial.println("- Forwarded") ;
       }) ;
     }
 
@@ -221,9 +221,6 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
         Serial.println(d->getUUID().toString().c_str()) ;
         
         std::string val = this->descmap[d]->readValue() ;
-        //if (this->callbacks != nullptr){
-        //  val = this->callbacks->onRead(chr, val) ;
-        //}
         d->setValue(val) ;
         
         Serial.println("- Forwarded") ;
@@ -233,8 +230,15 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
 
     // When Server receives a descriptor write
     void onWrite(BLEDescriptor *d){
-      Serial.print("Received write for desc ") ;
-      Serial.println(d->getUUID().toString().c_str()) ;     
+      events.push_back([=]{
+        Serial.print("Received write for desc ") ;
+        Serial.println(d->getUUID().toString().c_str()) ; 
+        
+        std::string val(reinterpret_cast<const char *>(d->getValue()), d->getLength()) ;
+        this->descmap[d]->writeValue(val) ;
+      
+        Serial.println("- Forwarded") ;
+      }) ;    
     }
 
     
