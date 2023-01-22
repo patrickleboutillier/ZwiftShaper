@@ -49,6 +49,10 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
       callbacks = c ;
     }
 
+
+    bool ready(){
+      return (this->server_connected && this->client_connected)  ;
+    }
     
     /*
       Call this method once an appripriate device has been chosen as the proxy's "server".
@@ -246,7 +250,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
       if (events.size() == 0){
         return ;
       }
-      if ((! this->server_connected)||(! this->client_connected)){
+      if (! ready()){
         return ;
       }
 

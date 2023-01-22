@@ -132,11 +132,13 @@ void loop() {
     digitalWrite(RED, pm & 0b10) ;
     digitalWrite(GREEN, pm & 0b01) ;
   }
-  
-  PROXY->processEvents() ;
-  unsigned long now = millis() ;
-  if ((now - then) > 1000){
-    then = now ;
-    MZSC->status() ;
+
+  if (PROXY->ready()){
+    PROXY->processEvents() ;
+    unsigned long now = millis() ;
+    if ((now - then) > 1000){
+      then = now ;
+      MZSC->status() ;
+    }
   }
 }
