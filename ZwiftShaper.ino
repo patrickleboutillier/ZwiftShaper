@@ -31,7 +31,12 @@ class MyZwiftShaperCallbacks : public ZwiftShaperCallbacks {
     }
     
     uint8_t setNextPowerMode(){
-      power_mode = (power_mode + 1) & 0b11 ;
+      switch(power_mode){
+        case 0: power_mode = 1 ; break ;
+        case 1: power_mode = 3 ; break ;
+        case 2: power_mode = 0 ; break ;
+        case 3: power_mode = 2 ; break ;
+      }
       return power_mode ;
     }
     
@@ -119,7 +124,7 @@ void setup() {
 }
 
 
-#define MAX_POWER   500
+#define MAX_POWER   250
 unsigned long then = millis() ;
 
 void loop() {
