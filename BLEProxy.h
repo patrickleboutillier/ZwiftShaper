@@ -29,7 +29,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
     bool client_connected ;
     std::map<BLECharacteristic*, BLERemoteCharacteristic*> charmap ;
     std::map<BLEDescriptor*, BLERemoteDescriptor*> descmap ;
-    std::vector<std::function<void()>> events ;
+    std::queue<std::function<void()>> events ;
     BLEProxyCallbacks *callbacks ;
   
   public:
@@ -246,23 +246,19 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
     }
 
     
-    void processEvents(){
-      if (events.size() == 0){
-        return ;
+    bool processEvent(){
+      if (events.empty()){
+        return false ;
       }
       if (! ready()){
-        return ;
+        return false ;
       }
 
-      //Serial.print("Processing ") ;
-      //Serial.print(events.size()) ;
-      //Serial.println(" events") ;
-      std::vector<std::function<void()>>::iterator it ;
-      for (it = events.begin() ; it != events.end() ; it++){
-        (*it)() ;
-      }
-      events.clear() ;
-    }
+      std::function<void()> *e = events.front() ;
+      (*e)() ;
+      events.pop() ;
+      
+      return true ;
 } ;
 
 

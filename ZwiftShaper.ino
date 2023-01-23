@@ -12,6 +12,9 @@ PinButton BUTTON(39, INPUT) ;
 #define POWER_MODE_ON_TARGET  3
 
 
+#define MAX_POWER   250
+
+
 class MyZwiftShaperCallbacks : public ZwiftShaperCallbacks {
   private:
     uint16_t trainer_power, trainer_cadence, target_power, effective_power ;
@@ -39,14 +42,11 @@ class MyZwiftShaperCallbacks : public ZwiftShaperCallbacks {
       }
       return power_mode ;
     }
-    
-    void setTargetPower(uint16_t tp){
-      target_power = tp ; 
-    }
 
     // Called when trainer sends power value to game
     uint16_t onPower(uint16_t watts){
       trainer_power = watts ;
+      target_power = map(analogRead(POWER), 0, 4095, 0, MAX_POWER) ;
       
       switch (power_mode){
         case POWER_MODE_OFF:
@@ -124,26 +124,25 @@ void setup() {
 }
 
 
-#define MAX_POWER   250
 unsigned long then = millis() ;
 
 void loop() {
-  uint16_t power = map(analogRead(POWER), 0, 4095, 0, MAX_POWER) ;
-  MZSC->setTargetPower(power) ;
-  
+  // Keep this as short as possible...
+  if (PROXY->processEvent()){
+    return ;
+  }
+
   BUTTON.update() ;
   if (BUTTON.isClick()){
     uint8_t pm = MZSC->setNextPowerMode() ;
     digitalWrite(RED, pm & 0b10) ;
     digitalWrite(GREEN, pm & 0b01) ;
+    return ;
   }
-
-  if (PROXY->ready()){
-    PROXY->processEvents() ;
-    unsigned long now = millis() ;
-    if ((now - then) > 1000){
-      then = now ;
-      MZSC->status() ;
-    }
+  
+  unsigned long now = millis() ;
+  if ((now - then) > 1000){
+    then = now ;
+    MZSC->status() ;
   }
 }
