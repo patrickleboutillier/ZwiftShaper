@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
+#include <queue>
 
 
 #define GEN_ACC_UUID            (uint16_t)0x1800
@@ -20,7 +21,9 @@ class BLEProxyCallbacks {
 } ;
 
 
-class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, public BLEDescriptorCallbacks {
+class BLEProxy : public BLEServerCallbacks, public BLEClientCallbacks,
+  public BLECharacteristicCallbacks, public BLEDescriptorCallbacks {
+    
   private:
     std::string dev_name ;
     BLEClient *client ;
@@ -140,15 +143,25 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
       }
     }
 
+
+    void onConnect(BLEClient *c){
+      Serial.println("[C] Client connected") ;
+    }
+
+
+    void onDisconnect(BLEClient *v){
+      Serial.println("[C] Client disconnected") ;
+    }
+
     
     void onConnect(BLEServer *srv){
       if (! server_connected){
-        Serial.println("Server connected") ;
+        Serial.println("[S] Server connected") ;
         server_connected = true ;
         return ;
       }
       if (! client_connected){
-        Serial.println("Client connected") ;
+        Serial.println("[S] Client connected") ;
         client_connected = true ;
         return ;
       }
@@ -156,7 +169,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
 
 
     void onDisconnect(BLEServer *srv){
-      Serial.println("Server or client disconnected") ;
+      Serial.println("[S] Server or client disconnected") ;
       if (callbacks != nullptr){
         callbacks->onDisconnect(server_connected, client_connected) ;
       }
@@ -165,7 +178,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
 
     // When Client receives a notification
     void onNotify(BLERemoteCharacteristic *rc, BLECharacteristic *c, std::string data){
-      events.push_back([=]{
+      events.push([=]{
         //Serial.print("Received notification for ") ;
         //Serial.println(rc->getUUID().toString().c_str()) ;
 
@@ -185,7 +198,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
 
     // When Server receives a characteristic read
     void onRead(BLECharacteristic *chr, esp_ble_gatts_cb_param_t *param){
-      events.push_back([=]{
+      events.push([=]{
         Serial.print("Received read for chr ") ;
         Serial.println(chr->getUUID().toString().c_str()) ;
   
@@ -203,7 +216,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
     // When Server receives a characteristic write
     void onWrite(BLECharacteristic *chr, esp_ble_gatts_cb_param_t *param){
       bool response = param->write.need_rsp ;
-      events.push_back([=]{
+      events.push([=]{
         //Serial.print("Received write for chr ") ;
         //Serial.println(chr->getUUID().toString().c_str()) ;
         
@@ -220,7 +233,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
 
     // When Server receives a descriptor read
     void onRead(BLEDescriptor *d){
-      events.push_back([=]{
+      events.push([=]{
         Serial.print("Received read for desc ") ;
         Serial.println(d->getUUID().toString().c_str()) ;
         
@@ -234,7 +247,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
 
     // When Server receives a descriptor write
     void onWrite(BLEDescriptor *d){
-      events.push_back([=]{
+      events.push([=]{
         Serial.print("Received write for desc ") ;
         Serial.println(d->getUUID().toString().c_str()) ; 
         
@@ -254,11 +267,12 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
         return false ;
       }
 
-      std::function<void()> *e = events.front() ;
-      (*e)() ;
+      std::function<void()> e = events.front() ;
+      e() ;
       events.pop() ;
       
       return true ;
+    }
 } ;
 
 

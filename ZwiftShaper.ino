@@ -1,6 +1,7 @@
 #include "ZwiftShaper.h"
 #include <PinButton.h>
 
+#define LED_BUILTIN 2
 #define GREEN       23
 #define RED         22
 #define POWER       36
@@ -90,7 +91,6 @@ class MyZwiftShaperCallbacks : public ZwiftShaperCallbacks {
 } ;
 
 
-
 ZwiftShaper *ZS = nullptr ;
 BLEProxy *PROXY = nullptr ;
 MyZwiftShaperCallbacks *MZSC = new MyZwiftShaperCallbacks() ;
@@ -120,6 +120,7 @@ void setup() {
 
     Serial.println("Starting advertisement...") ;
     BLEDevice::startAdvertising() ;
+    digitalWrite(LED_BUILTIN, HIGH) ;
   }
 }
 
