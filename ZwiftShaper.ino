@@ -12,15 +12,20 @@ PinButton BUTTON(39, INPUT) ;
 #define POWER_MODE_NOT_ABOVE  2
 #define POWER_MODE_ON_TARGET  3
 
-
 #define MAX_POWER   250
+
+#define GRADE_MODE_OFF        0
+#define GRADE_MODE_SUPPRESS   1
+
+bool reconnect_trainer = false ;
+bool reconnect_zwift = false ;
 
 
 class MyZwiftShaperCallbacks : public ZwiftShaperCallbacks {
   private:
     uint16_t trainer_power, trainer_cadence, target_power, effective_power ;
     float game_grade, target_grade, effective_grade ;
-    uint8_t power_mode ;
+    uint8_t power_mode, grade_mode ;
     
   public:
     MyZwiftShaperCallbacks(){
@@ -42,6 +47,11 @@ class MyZwiftShaperCallbacks : public ZwiftShaperCallbacks {
         case 3: power_mode = 2 ; break ;
       }
       return power_mode ;
+    }
+
+    uint8_t setNextGradeMode(){
+      grade_mode = !grade_mode ;
+      return grade_mode ;
     }
 
     // Called when trainer sends power value to game
@@ -70,7 +80,7 @@ class MyZwiftShaperCallbacks : public ZwiftShaperCallbacks {
     // Called when game sends grade value to trainer
     float onGrade(float grade){
       game_grade = grade ;
-      effective_grade = game_grade ;
+      effective_grade = (grade_mode == GRADE_MODE_SUPPRESS ? 0 : game_grade) ;
       return effective_grade ;
     }
 
@@ -88,6 +98,14 @@ class MyZwiftShaperCallbacks : public ZwiftShaperCallbacks {
         ) ;
       Serial.print(buf) ;
     }
+
+    void onTrainerDisconnect(){
+      ESP.restart() ;
+    }
+
+    void onZwiftDisconnect(){
+      reconnect_zwift = true ;
+    }
 } ;
 
 
@@ -99,6 +117,7 @@ MyZwiftShaperCallbacks *MZSC = new MyZwiftShaperCallbacks() ;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200) ;
+  pinMode(LED_BUILTIN, OUTPUT) ;
   pinMode(GREEN, OUTPUT) ;
   pinMode(RED, OUTPUT) ;
   pinMode(POWER, INPUT) ;
@@ -117,10 +136,8 @@ void setup() {
   BLEAdvertisedDevice *rd = ZS->getRemoteDevice() ;
   if (rd != nullptr){
     PROXY->cloneBLEProfile(rd) ;
-
     Serial.println("Starting advertisement...") ;
     BLEDevice::startAdvertising() ;
-    digitalWrite(LED_BUILTIN, HIGH) ;
   }
 }
 
@@ -140,10 +157,19 @@ void loop() {
     digitalWrite(GREEN, pm & 0b01) ;
     return ;
   }
-  
-  unsigned long now = millis() ;
-  if ((now - then) > 1000){
-    then = now ;
-    MZSC->status() ;
+
+  if (PROXY->ready()){
+    unsigned long now = millis() ;
+    if ((now - then) > 1000){
+      then = now ;
+      MZSC->status() ;
+    }
+  }
+  else {
+    if (reconnect_zwift){
+      Serial.println("Starting advertisement...") ;
+      BLEDevice::startAdvertising() ;
+      reconnect_zwift = false ;
+    }
   }
 }

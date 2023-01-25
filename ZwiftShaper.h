@@ -30,6 +30,8 @@ class ZwiftShaperCallbacks {
     virtual uint16_t onPower(uint16_t watts) = 0 ;
     virtual void onCadence(uint16_t rpms) = 0 ;
     virtual float onGrade(float grade) = 0 ;
+    virtual void onTrainerDisconnect() = 0 ;
+    virtual void onZwiftDisconnect() = 0 ;
 } ;
 
 
@@ -118,10 +120,6 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
       return std::string(reinterpret_cast<const char *>(data), s.length()) ;
     }
     
-    void onDisconnect(bool server_connected, bool client_connected){
-      ESP.restart() ;
-    }
-
 
     std::string onCyclingPowerMeasurement(BLERemoteCharacteristic *rc, std::string s){
       std::vector<uint8_t> v(s.begin(), s.end()) ;
@@ -160,7 +158,7 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
           offset += 2 ;
 
           uint16_t cr = crevs - prev_crevs ;
-          if ((lcet > prev_lcet)&&(cr > 0)){
+          if ((lcet > prev_lcet)&&(cr > 0)&&(prev_lcet > 0)){
             uint16_t dur = lcet - prev_lcet ;
             uint16_t rpms = (cr * 1024 * 60) / dur ;
             if (callbacks){
@@ -173,6 +171,20 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
       }
 
       return std::string(reinterpret_cast<const char *>(data), s.length()) ;
+    }
+
+
+    void onTrainerDisconnect(){
+      if (callbacks){
+        callbacks->onTrainerDisconnect() ;
+      }
+    }
+
+
+    void onZwiftDisconnect(){
+      if (callbacks){
+        callbacks->onZwiftDisconnect() ;
+      }
     }
 } ;
 

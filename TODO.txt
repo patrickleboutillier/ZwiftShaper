@@ -2,3 +2,4 @@
 - Handle disconnections better to enable reconnect
   - Investigate different callbacks
   - Setup reconnection sequence (client and server)
+- Investigate doubleclick for hill-suppression

@@ -17,19 +17,20 @@ class BLEProxyCallbacks {
     virtual std::string onRead(BLECharacteristic *c, std::string data) = 0 ;
     virtual std::string onWrite(BLECharacteristic *c, std::string data) = 0 ;
     virtual std::string onNotify(BLERemoteCharacteristic *rc, std::string data) = 0 ;
-    virtual void onDisconnect(bool server_connected, bool client_connected) = 0 ;
+    virtual void onTrainerDisconnect() = 0 ;
+    virtual void onZwiftDisconnect() = 0 ;
 } ;
 
 
-class BLEProxy : public BLEServerCallbacks, public BLEClientCallbacks,
-  public BLECharacteristicCallbacks, public BLEDescriptorCallbacks {
-    
+class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, public BLEDescriptorCallbacks {
   private:
     std::string dev_name ;
     BLEClient *client ;
     BLEServer *server ;
-    bool server_connected ;
-    bool client_connected ;
+    bool trainer_connected ;
+    bool zwift_connected ;
+    BLEAddress *trainer_address ;
+    BLEAddress *zwift_address ;
     std::map<BLECharacteristic*, BLERemoteCharacteristic*> charmap ;
     std::map<BLEDescriptor*, BLERemoteDescriptor*> descmap ;
     std::queue<std::function<void()>> events ;
@@ -42,8 +43,10 @@ class BLEProxy : public BLEServerCallbacks, public BLEClientCallbacks,
       client = BLEDevice::createClient() ;
       server = BLEDevice::createServer() ;
       server->setCallbacks(this) ;
-      server_connected = false ;
-      client_connected = false ;
+      trainer_connected = false ;
+      zwift_connected = false ;
+      trainer_address = nullptr ;
+      zwift_address = nullptr ;
       callbacks = nullptr ;
     }
 
@@ -54,7 +57,7 @@ class BLEProxy : public BLEServerCallbacks, public BLEClientCallbacks,
 
 
     bool ready(){
-      return (this->server_connected && this->client_connected)  ;
+      return (this->trainer_connected && this->zwift_connected)  ;
     }
     
     /*
@@ -69,6 +72,9 @@ class BLEProxy : public BLEServerCallbacks, public BLEClientCallbacks,
       Serial.println("'")  ;
 
       // Connect to the remote BLE Server.
+      trainer_address = new BLEAddress(adev->getAddress()) ;
+      Serial.print("- Trainer BLE address is ") ;
+      Serial.println(trainer_address->toString().c_str()) ;
       client->connect(adev) ;
       dev_name = dev_name + std::string("[") + adev->getName() + std::string("]") ;
       ::esp_ble_gap_set_device_name(dev_name.c_str()) ;
@@ -97,8 +103,8 @@ class BLEProxy : public BLEServerCallbacks, public BLEClientCallbacks,
         for (it = cm->begin() ; it != cm->end() ; it++){
           std::string uuid = it->first ;
           BLERemoteCharacteristic *rc = it->second ;
-          Serial.print("  - Found characteristic ") ;
-          Serial.println(rc->toString().c_str()) ;
+          //Serial.print("  - Found characteristic ") ;
+          //Serial.println(rc->toString().c_str()) ;
           uint32_t properties =
             (rc->canRead() ? BLECharacteristic::PROPERTY_READ : 0) |
             (rc->canWrite() ? BLECharacteristic::PROPERTY_WRITE : 0) |
@@ -128,8 +134,8 @@ class BLEProxy : public BLEServerCallbacks, public BLEClientCallbacks,
           for (it = dm->begin() ; it != dm->end() ; it++){
             std::string uuid = it->first ;
             BLERemoteDescriptor *rd = it->second ;
-            Serial.print("  - Found descriptor ") ;
-            Serial.println(uuid.c_str()) ;
+            //Serial.print("  - Found descriptor ") ;
+            //Serial.println(uuid.c_str()) ;
 
             // Setup this descriptor on our server
             BLEDescriptor *d = new BLEDescriptor(BLEUUID(rd->getUUID()), 512) ;
@@ -144,34 +150,41 @@ class BLEProxy : public BLEServerCallbacks, public BLEClientCallbacks,
     }
 
 
-    void onConnect(BLEClient *c){
-      Serial.println("[C] Client connected") ;
-    }
-
-
-    void onDisconnect(BLEClient *v){
-      Serial.println("[C] Client disconnected") ;
-    }
-
-    
-    void onConnect(BLEServer *srv){
-      if (! server_connected){
-        Serial.println("[S] Server connected") ;
-        server_connected = true ;
+    void onConnect(BLEServer *srv, esp_ble_gatts_cb_param_t* param){
+      // How connected?
+      BLEAddress peer(param->connect.remote_bda) ;
+      if (trainer_address->equals(peer)){
+        Serial.println("Trainer connected") ;
+        trainer_connected = true ;
         return ;
       }
-      if (! client_connected){
-        Serial.println("[S] Client connected") ;
-        client_connected = true ;
+      else {
+        Serial.println("Game connected") ;
+        zwift_connected = true ;
+        if (zwift_address == nullptr){
+          zwift_address = new BLEAddress(peer) ;
+        }
         return ;
       }
     }
 
 
-    void onDisconnect(BLEServer *srv){
-      Serial.println("[S] Server or client disconnected") ;
+    void onDisconnect(BLEServer *srv, esp_ble_gatts_cb_param_t* param){
+      // How disconnected?
+      BLEAddress peer(param->disconnect.remote_bda) ;
+      if (trainer_address->equals(peer)){
+        Serial.println("Trainer disconnected") ;
+        trainer_connected = false ;
+        if (callbacks != nullptr){
+          callbacks->onTrainerDisconnect() ;
+        }
+      }
+      else {
+        Serial.println("Game disconnected") ;        
+        zwift_connected = false ;
+      }
       if (callbacks != nullptr){
-        callbacks->onDisconnect(server_connected, client_connected) ;
+        callbacks->onZwiftDisconnect() ;
       }
     }
 
