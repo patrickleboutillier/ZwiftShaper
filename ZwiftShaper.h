@@ -7,9 +7,6 @@
 #include "BLEProxy.h"
 
 
-#define GEN_ACC_UUID            (uint16_t)0x1800
-#define GEN_ATTR_UUID           (uint16_t)0x1801
-
 // Supported service UUIDs, as defined in GATT specifications
 #define CPS_UUID                (uint16_t)0x1818
 #define FMS_UUID                (uint16_t)0x1826

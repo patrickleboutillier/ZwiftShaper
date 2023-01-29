@@ -4,6 +4,7 @@
 #define LED_BUILTIN 2
 #define GREEN       23
 #define RED         22
+#define YELLOW      21
 #define POWER       36
 PinButton BUTTON(39, INPUT) ;
 
@@ -37,6 +38,7 @@ class MyZwiftShaperCallbacks : public ZwiftShaperCallbacks {
         target_grade = 0 ;
         effective_grade = 0 ;
         power_mode = 0 ;
+        grade_mode = 0 ;
     }
     
     uint8_t setNextPowerMode(){
@@ -119,6 +121,7 @@ void setup() {
   Serial.begin(115200) ;
   pinMode(LED_BUILTIN, OUTPUT) ;
   pinMode(GREEN, OUTPUT) ;
+  pinMode(YELLOW, OUTPUT) ;
   pinMode(RED, OUTPUT) ;
   pinMode(POWER, INPUT) ;
 
@@ -151,10 +154,15 @@ void loop() {
   }
 
   BUTTON.update() ;
-  if (BUTTON.isClick()){
+  if (BUTTON.isSingleClick()){
     uint8_t pm = MZSC->setNextPowerMode() ;
     digitalWrite(RED, pm & 0b10) ;
     digitalWrite(GREEN, pm & 0b01) ;
+    return ;
+  }
+  else if (BUTTON.isLongClick()){
+    uint8_t gm = MZSC->setNextGradeMode() ;
+    digitalWrite(YELLOW, gm) ;
     return ;
   }
 
