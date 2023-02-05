@@ -15,6 +15,8 @@
 #define CPS_CPF_UUID            (uint16_t)0x2A65
 #define CPS_SL_UUID             (uint16_t)0x2A5D
 #define CPS_CPM_UUID            (uint16_t)0x2A63
+#define FMS_IB_UUID             (uint16_t)0x2AD2
+#define FMS_FMCP_UUID           (uint16_t)0x2AD9
 
 //Tacx FE-C service and characteristics
 #define TACX_FEC_UUID           "6E40FEC1-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -58,13 +60,14 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
 
     void onResult(BLEAdvertisedDevice adev){
       // We have found a device, let us now see if it contains one of the services we are looking for.
-      if (adev.isAdvertisingService(BLEUUID(CPS_UUID))){ // Cycling Power Service
+      if ((adev.isAdvertisingService(BLEUUID(CPS_UUID)))||  // Cycling Power Service  
+          (adev.isAdvertisingService(BLEUUID(CPS_UUID)))){  // Fitness Machine Service
         // For know, just pick the first one we find...
         Serial.print("- Found device '") ;
         Serial.print(adev.getName().c_str()) ;
         Serial.print("': ")  ;
         Serial.println(adev.toString().c_str()) ;
-        Serial.println("  - Device with Cycling Power Service found: stopping scan") ;
+        Serial.println("  - Device with Cycling Power Service or Fitness Machine Service found: stopping scan") ;
         remote_device = new BLEAdvertisedDevice(adev) ;
         BLEDevice::getScan()->stop() ;
       }
@@ -80,6 +83,9 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
       if (c->getUUID().equals(BLEUUID(TACX_FEC_WRITE_UUID))){ 
         return OnTacxFECWrite(c, data) ;
       }
+      else if (c->getUUID().equals(BLEUUID(FMS_FMCP_UUID))){ 
+        return OnFitnessMachineControlPoint(c, data) ;
+      }
       return data ;
     }
     
@@ -88,7 +94,14 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
       if (rc->getUUID().equals(BLEUUID(CPS_CPM_UUID))){
         return onCyclingPowerMeasurement(rc, data) ;
       }
+      else if (rc->getUUID().equals(BLEUUID(FMS_IB_UUID))){
+        return onIndoorBike(rc, data) ;
+      }
+      return data ;
+    }
 
+
+    std::string onIndicate(BLERemoteCharacteristic *rc, std::string data){
       return data ;
     }
 
@@ -116,7 +129,32 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
       
       return std::string(reinterpret_cast<const char *>(data), s.length()) ;
     }
-    
+
+
+    std::string OnFitnessMachineControlPoint(BLECharacteristic *c, std::string s){
+      std::vector<uint8_t> v(s.begin(), s.end()) ;
+      uint8_t *data = &v[0] ;
+      switch(data[0]) {
+        case 0x05:    // Target power level
+          break ;
+        case 0x11: {
+          float grade = (int16_t)((data[4] << 8) + data[3]) / 100.0 ;
+          Serial.print("-> FMCP Grade: ") ;
+          Serial.print(grade) ; 
+          Serial.println("%") ; 
+          if (callbacks){
+            grade = callbacks->onGrade(grade) ;
+          }
+          break ;
+        }
+        default:
+          Serial.print("Unhandled FMCP data: ") ;
+          Serial.println(data[0], HEX) ;
+      }  
+      
+      return std::string(reinterpret_cast<const char *>(data), s.length()) ;  
+    }
+
 
     std::string onCyclingPowerMeasurement(BLERemoteCharacteristic *rc, std::string s){
       std::vector<uint8_t> v(s.begin(), s.end()) ;
@@ -130,6 +168,8 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
         // println(flags, BIN) ;
     
         uint16_t power = data[offset + 1] << 8 | data[offset] ;
+        Serial.print("-> CPM Power: ") ;
+        Serial.println(power) ;
         if (callbacks){
           power = callbacks->onPower(power) ;
         }
@@ -149,8 +189,8 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
         if (flags & 0b100000){
           uint16_t crevs = data[offset + 1] << 8 | data[offset] ;
           offset += 2 ;
-          //Serial.print("Crank Revolutions: ") ;
-          //Serial.println(crevs) ;
+          // Serial.print("Crank Revolutions: ") ;
+          // Serial.println(crevs) ;
           uint16_t lcet = data[offset + 1] << 8 | data[offset] ;
           offset += 2 ;
 
@@ -158,6 +198,8 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
           if ((lcet > prev_lcet)&&(cr > 0)&&(prev_lcet > 0)){
             uint16_t dur = lcet - prev_lcet ;
             uint16_t rpms = (cr * 1024 * 60) / dur ;
+            Serial.print("-> CPM Estimated RPMs: ") ;
+            Serial.println(rpms) ;
             if (callbacks){
               callbacks->onCadence(rpms) ;
             }
@@ -171,6 +213,46 @@ class ZwiftShaper : public BLEAdvertisedDeviceCallbacks, public BLEProxyCallback
     }
 
 
+    std::string onIndoorBike(BLERemoteCharacteristic *rc, std::string s){
+      std::vector<uint8_t> v(s.begin(), s.end()) ;
+      uint8_t *data = &v[0] ;
+      
+      if (s.length() >= 3){
+        uint8_t offset = 0 ;
+        uint16_t flags = data[offset + 1] << 8 | data[offset] ;
+        // Serial.print("Flags: 0b") ;
+        // Serial.println(flags, BIN) ;
+        offset += 2 ;
+        
+        // speed, 2 bytes
+        offset += 2 ;
+
+        if (flags & 0b100){
+          uint16_t rpms = (data[offset + 1] << 8 | data[offset]) / 2 ;
+          Serial.print("-> IB RPMs: ") ;
+          Serial.println(rpms) ;
+          if (callbacks){
+            callbacks->onCadence(rpms) ;
+          }
+          offset += 2 ;
+        }
+        if (flags & 0b1000000){
+          uint16_t power = data[offset + 1] << 8 | data[offset] ;
+          Serial.print("-> IB Power: ") ;
+          Serial.println(power) ;
+          if (callbacks){
+            power = callbacks->onPower(power) ;
+            data[offset + 1] = power >> 8 ;
+            data[offset] = power & 0xFF ;
+          }
+          offset += 2 ;
+        }
+      }
+      
+      return std::string(reinterpret_cast<const char *>(data), s.length()) ;
+    }
+
+    
     void onTrainerDisconnect(){
       if (callbacks){
         callbacks->onTrainerDisconnect() ;

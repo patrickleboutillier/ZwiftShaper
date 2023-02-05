@@ -17,6 +17,7 @@ class BLEProxyCallbacks {
     virtual std::string onRead(BLECharacteristic *c, std::string data) = 0 ;
     virtual std::string onWrite(BLECharacteristic *c, std::string data) = 0 ;
     virtual std::string onNotify(BLERemoteCharacteristic *rc, std::string data) = 0 ;
+    virtual std::string onIndicate(BLERemoteCharacteristic *rc, std::string data) = 0 ;
     virtual void onTrainerDisconnect() = 0 ;
     virtual void onZwiftDisconnect() = 0 ;
 } ;
@@ -115,9 +116,11 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
       
           // Setup this characteristic on our server
           BLECharacteristic *c = new BLECharacteristic(BLEUUID(rc->getUUID()), properties) ;
-          c->setCallbacks(this) ;
           s->addCharacteristic(c) ;
+          // Copy the value from the server
+          c->setValue(rc->readValue()) ;
           charmap.insert({c, rc}) ;
+          c->setCallbacks(this) ;
 
           if (rc->canNotify()){
             // We need to set up a callback to handle these notifications
@@ -125,9 +128,17 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
               if (is_notify){
                 this->onNotify(rc, c, std::string(reinterpret_cast<const char *>(data), length)) ;
               }
-            }) ;
+            }, true, true) ;
           }
-
+          if (rc->canIndicate()){
+            // We need to set up a callback to handle these notifications
+            rc->registerForNotify([=](BLERemoteCharacteristic *rc, uint8_t *data, size_t length, bool is_notify){
+              if (! is_notify){
+                this->onIndicate(rc, c, std::string(reinterpret_cast<const char *>(data), length)) ;
+              }
+            }, false, true) ;
+          }
+          
           // Descriptors
           std::map<std::string, BLERemoteDescriptor*> *dm = rc->getDescriptors() ;
           std::map<std::string, BLERemoteDescriptor*>::iterator it ;
@@ -139,9 +150,11 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
 
             // Setup this descriptor on our server
             BLEDescriptor *d = new BLEDescriptor(BLEUUID(rd->getUUID()), 512) ;
-            d->setCallbacks(this) ;
             c->addDescriptor(d) ;
+            // Copy the value from the server
+            d->setValue(rd->readValue()) ;
             descmap.insert({d, rd}) ;
+            d->setCallbacks(this) ;
           }
         }
 
@@ -151,7 +164,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
 
 
     void onConnect(BLEServer *srv, esp_ble_gatts_cb_param_t* param){
-      // How connected?
+      // Who connected?
       BLEAddress peer(param->connect.remote_bda) ;
       if (trainer_address->equals(peer)){
         Serial.println("Trainer connected") ;
@@ -170,7 +183,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
 
 
     void onDisconnect(BLEServer *srv, esp_ble_gatts_cb_param_t* param){
-      // How disconnected?
+      // Who disconnected?
       BLEAddress peer(param->disconnect.remote_bda) ;
       if (trainer_address->equals(peer)){
         Serial.println("Trainer disconnected") ;
@@ -192,22 +205,40 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
     // When Client receives a notification
     void onNotify(BLERemoteCharacteristic *rc, BLECharacteristic *c, std::string data){
       events.push([=]{
-        //Serial.print("Received notification for ") ;
-        //Serial.println(rc->getUUID().toString().c_str()) ;
+        // Serial.print("Received notification for ") ;
+        // Serial.println(rc->getUUID().toString().c_str()) ;
 
-        std::string mdata = data ;
+        std::string val = data ;
         if (this->callbacks != nullptr){
-          mdata = this->callbacks->onNotify(rc, mdata) ;
+          val = this->callbacks->onNotify(rc, val) ;
         }
-        
         // Now that we had a chance to modify the data, we forward it through our server counterpart:
-        c->setValue(mdata) ;
+        c->setValue(val) ;
         c->notify() ;
         
-        //Serial.println("- Forwarded") ;
+        // Serial.println("- Forwarded") ;
       }) ;
     }
 
+
+    // When Client receives an indication
+    void onIndicate(BLERemoteCharacteristic *rc, BLECharacteristic *c, std::string data){
+      events.push([=]{
+        // Serial.print("Received indication for ") ;
+        // Serial.println(rc->getUUID().toString().c_str()) ;
+
+        std::string val = data ;
+        if (this->callbacks != nullptr){
+          val = this->callbacks->onIndicate(rc, val) ;
+        }
+        // Now that we had a chance to modify the data, we forward it through our server counterpart:
+        c->setValue(val) ;
+        c->indicate() ;
+        
+        // Serial.println("- Forwarded") ;
+      }) ;
+    }
+    
 
     // When Server receives a characteristic read
     void onRead(BLECharacteristic *chr, esp_ble_gatts_cb_param_t *param){
@@ -230,8 +261,11 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
     void onWrite(BLECharacteristic *chr, esp_ble_gatts_cb_param_t *param){
       bool response = param->write.need_rsp ;
       events.push([=]{
-        //Serial.print("Received write for chr ") ;
-        //Serial.println(chr->getUUID().toString().c_str()) ;
+        Serial.print("Received write for chr ") ;
+        if (response){
+          Serial.print("(response expected) ") ;
+        }
+        Serial.println(chr->getUUID().toString().c_str()) ;
         
         std::string val = chr->getValue() ;
         if (this->callbacks != nullptr){
@@ -239,7 +273,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
         }
         this->charmap[chr]->writeValue(val, response) ;
       
-        //Serial.println("- Forwarded") ;
+        // Serial.println("- Forwarded") ;
       }) ;
     }
 
@@ -253,7 +287,7 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
         std::string val = this->descmap[d]->readValue() ;
         d->setValue(val) ;
         
-        Serial.println("- Forwarded") ;
+        // Serial.println("- Forwarded") ;
       }) ; 
     }    
     
@@ -263,11 +297,18 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
       events.push([=]{
         Serial.print("Received write for desc ") ;
         Serial.println(d->getUUID().toString().c_str()) ; 
+        Serial.println(d->getCharacteristic()->toString().c_str()) ;
         
         std::string val(reinterpret_cast<const char *>(d->getValue()), d->getLength()) ;
+        uint8_t *v = d->getValue() ;
+        for (int i = 0 ; i < d->getLength() ; i++){
+          Serial.print(v[i], HEX) ;
+          Serial.print(":") ;
+        }
+        Serial.println() ;
         this->descmap[d]->writeValue(val) ;
       
-        Serial.println("- Forwarded") ;
+        // Serial.println("- Forwarded") ;
       }) ;    
     }
 
@@ -285,6 +326,18 @@ class BLEProxy : public BLEServerCallbacks, public BLECharacteristicCallbacks, p
       events.pop() ;
       
       return true ;
+    }
+
+
+    void printHex(std::string v){
+      const char *s = v.c_str() ;
+      for (int i = 0 ; i < strlen(s) ; i++){
+        if (i > 0){
+          Serial.print(":") ;
+        }
+        Serial.print(s[i], HEX) ;
+      }
+      Serial.println() ;      
     }
 } ;
 
